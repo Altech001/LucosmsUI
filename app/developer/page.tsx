@@ -61,19 +61,21 @@ export default function DeveloperPage() {
 
   const fetchApiKeys = async () => {
     setLoading(true);
+    setError(null);
     const retries = 3;
     
     for (let i = 0; i < retries; i++) {
       try {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Exponential backoff: 500ms, 1500ms, 3500ms
+        const delay = i === 0 ? 500 : 500 * Math.pow(2, i);
+        await new Promise(resolve => setTimeout(resolve, delay));
         
         const token = await getToken();
         if (!token) {
           if (i < retries - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
             continue;
           }
-          setError("Authentication required");
+          setError("Authentication required - please sign in again");
           setLoading(false);
           return;
         }
@@ -85,7 +87,12 @@ export default function DeveloperPage() {
             "Authorization": `Bearer ${token}`,
           },
         });
-      if (!response.ok) throw new Error("Failed to fetch API keys");
+        
+        if (!response.ok) {
+          const errorMsg = `Failed to fetch API keys: ${response.status} ${response.statusText}`;
+          throw new Error(errorMsg);
+        }
+        
         const data: ApiKeyResponse[] = await response.json();
         setApiKeys(
           data.map((key) => ({
@@ -99,11 +106,13 @@ export default function DeveloperPage() {
             status: key.is_active ? "active" : "inactive",
           }))
         );
+        setError(null);
         setLoading(false);
         return;
       } catch (err) {
         if (i === retries - 1) {
-          setError("Error fetching API keys");
+          const errorMessage = err instanceof Error ? err.message : "Error fetching API keys";
+          setError(errorMessage);
           setLoading(false);
         }
       }
@@ -113,56 +122,97 @@ export default function DeveloperPage() {
   const generateApiKey = async () => {
     setLoading(true);
     setError(null);
-    try {
-      const token = await getToken();
-      if (!token) {
-        setError("Authentication required");
+    const retries = 3;
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        // Exponential backoff: 500ms, 1500ms, 3500ms
+        const delay = i === 0 ? 500 : 500 * Math.pow(2, i);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        const token = await getToken();
+        if (!token) {
+          if (i < retries - 1) {
+            continue;
+          }
+          setError("Authentication required - please sign in again");
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch("https://luco-backend.onrender.com/api/v1/api_key/generate", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+          body: JSON.stringify({}),
+        });
+        
+        if (!response.ok) {
+          const errorMsg = `Failed to generate API key: ${response.status} ${response.statusText}`;
+          throw new Error(errorMsg);
+        }
+        
+        await fetchApiKeys();
         setLoading(false);
         return;
+      } catch (err) {
+        if (i === retries - 1) {
+          const errorMessage = err instanceof Error ? err.message : "Error generating API key";
+          setError(errorMessage);
+          setLoading(false);
+        }
       }
-
-      const response = await fetch("https://luco-backend.onrender.com/api/v1/api_key/generate", {
-        method: "POST",
-        headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({}),
-      });
-      if (!response.ok) throw new Error("Failed to generate API key");
-      await fetchApiKeys();
-    } catch (err) {
-      setError("Error generating API key");
-    } finally {
-      setLoading(false);
     }
   };
 
   const deleteApiKey = async (id: string) => {
     if (!confirm("Are you sure you want to delete this API key? This action cannot be undone.")) return;
     setLoading(true);
-    try {
-      const token = await getToken();
-      if (!token) {
-        setError("Authentication required");
+    setError(null);
+    const retries = 3;
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        // Exponential backoff: 500ms, 1500ms, 3500ms
+        const delay = i === 0 ? 500 : 500 * Math.pow(2, i);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        const token = await getToken();
+        if (!token) {
+          if (i < retries - 1) {
+            continue;
+          }
+          setError("Authentication required - please sign in again");
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch(`https://luco-backend.onrender.com/api/v1/api_key/delete/${id}`, {
+          method: "DELETE",
+          headers: {
+            "Accept": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+        
+        if (!response.ok) {
+          const errorMsg = `Failed to delete API key: ${response.status} ${response.statusText}`;
+          throw new Error(errorMsg);
+        }
+        
+        await fetchApiKeys();
         setLoading(false);
         return;
+      } catch (err) {
+        if (i === retries - 1) {
+          const errorMessage = err instanceof Error ? err.message : "Error deleting API key";
+          setError(errorMessage);
+          setLoading(false);
+        }
       }
-
-      const response = await fetch(`https://luco-backend.onrender.com/api/v1/api_key/delete/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) throw new Error("Failed to delete API key");
-      await fetchApiKeys();
-    } catch (err) {
-      setError("Error deleting API key");
-    } finally {
-      setLoading(false);
     }
   };
 

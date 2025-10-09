@@ -172,31 +172,45 @@ export default function ContactCollectionPage() {
             'Authorization': `Bearer ${token}`
           }
         })
-        if (response.ok) {
-          const data: Group[] = await response.json()
-          // Fetch detailed info for each group to get contact count
-          const groupsWithDetails = await Promise.all(
-            data.map(async (group: Group): Promise<Group> => {
-              try {
-                const detailResponse = await fetch(`${API_BASE_URL}/groups/${group.id}`, {
-                  headers: { 
-                    'accept': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                  }
-                })
-                if (detailResponse.ok) {
-                  const details: Group & { contact_count: number } = await detailResponse.json()
-                  return { ...group, contact_count: details.contact_count || 0 }
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch groups: ${response.status} ${response.statusText}`)
+        }
+        
+        const data: Group[] = await response.json()
+        // Fetch detailed info for each group to get contact count
+        const groupsWithDetails = await Promise.all(
+          data.map(async (group: Group): Promise<Group> => {
+            try {
+              const detailResponse = await fetch(`${API_BASE_URL}/groups/${group.id}`, {
+                headers: { 
+                  'accept': 'application/json',
+                  'Authorization': `Bearer ${token}`
                 }
-                return { ...group, contact_count: 0 }
-              } catch {
+              })
+              if (!detailResponse.ok) {
+                // Authentication failures should propagate and cause retry
+                if (detailResponse.status === 401 || detailResponse.status === 403) {
+                  throw new Error(`Authentication failed for group ${group.id}: ${detailResponse.status}`)
+                }
+                // Other errors just log and continue with zero count
+                console.warn(`Failed to fetch details for group ${group.id}: ${detailResponse.status}`)
                 return { ...group, contact_count: 0 }
               }
-            })
-          )
-          setGroups(groupsWithDetails)
-          break
-        }
+              const details: Group & { contact_count: number } = await detailResponse.json()
+              return { ...group, contact_count: details.contact_count || 0 }
+            } catch (err) {
+              // Re-throw authentication errors to trigger retry
+              if (err instanceof Error && (err.message.includes('401') || err.message.includes('403') || err.message.includes('Authentication'))) {
+                throw err
+              }
+              console.warn(`Error fetching details for group ${group.id}:`, err)
+              return { ...group, contact_count: 0 }
+            }
+          })
+        )
+        setGroups(groupsWithDetails)
+        break
       } catch (error) {
         if (i === retries - 1) {
           console.error('Error fetching groups after retries:', error)
@@ -234,11 +248,14 @@ export default function ContactCollectionPage() {
             'Authorization': `Bearer ${token}`
           }
         })
-        if (response.ok) {
-          const data: Contact[] = await response.json()
-          setContacts(data || [])
-          break
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch contacts: ${response.status} ${response.statusText}`)
         }
+        
+        const data: Contact[] = await response.json()
+        setContacts(data || [])
+        break
       } catch (error) {
         if (i === retries - 1) {
           console.error('Error fetching contacts after retries:', error)
@@ -276,11 +293,14 @@ export default function ContactCollectionPage() {
             'Authorization': `Bearer ${token}`
           }
         })
-        if (response.ok) {
-          const data: Contact[] = await response.json()
-          setGroupContacts(data || [])
-          break
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch group contacts: ${response.status} ${response.statusText}`)
         }
+        
+        const data: Contact[] = await response.json()
+        setGroupContacts(data || [])
+        break
       } catch (error) {
         if (i === retries - 1) {
           console.error('Error fetching group contacts after retries:', error)

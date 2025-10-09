@@ -211,12 +211,23 @@ const groupsAPI = {
           const detailResponse = await fetch(`${API_BASE_URL}/groups/${group.id}`, {
             headers: { Authorization: `Bearer ${token}` },
           })
-          if (detailResponse.ok) {
-            const details: Group & { contact_count: number } = await detailResponse.json()
-            return { ...group, contact_count: details.contact_count || 0 }
+          if (!detailResponse.ok) {
+            // Authentication failures should propagate and cause retry
+            if (detailResponse.status === 401 || detailResponse.status === 403) {
+              throw new Error(`Authentication failed for group ${group.id}: ${detailResponse.status}`)
+            }
+            // Other errors just log and continue with zero count
+            console.warn(`Failed to fetch details for group ${group.id}: ${detailResponse.status}`)
+            return { ...group, contact_count: 0 }
           }
-          return { ...group, contact_count: 0 }
-        } catch {
+          const details: Group & { contact_count: number } = await detailResponse.json()
+          return { ...group, contact_count: details.contact_count || 0 }
+        } catch (err) {
+          // Re-throw authentication errors to trigger retry
+          if (err instanceof Error && (err.message.includes('401') || err.message.includes('403') || err.message.includes('Authentication'))) {
+            throw err
+          }
+          console.warn(`Error fetching details for group ${group.id}:`, err)
           return { ...group, contact_count: 0 }
         }
       })
