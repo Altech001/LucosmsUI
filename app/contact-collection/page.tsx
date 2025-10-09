@@ -98,15 +98,15 @@ interface ContactToImport {
 const formatPhoneNumberUG = (phone: string): string => {
   if (!phone) return ""
   let cleaned = phone.replace(/\D/g, '')
-  
+
   if (cleaned.startsWith('0')) {
     cleaned = '256' + cleaned.slice(1)
   }
-  
+
   if (!cleaned.startsWith('256')) {
     cleaned = '256' + cleaned
   }
-  
+
   return '+' + cleaned
 }
 
@@ -151,10 +151,10 @@ export default function ContactCollectionPage() {
     for (let i = 0; i < retries; i++) {
       try {
         setLoading(true)
-        
+
         // Wait for Clerk session to be ready
         await new Promise(resolve => setTimeout(resolve, 500))
-        
+
         const token = await getToken()
         if (!token) {
           console.error("No authentication token available, attempt:", i + 1)
@@ -172,11 +172,11 @@ export default function ContactCollectionPage() {
             'Authorization': `Bearer ${token}`
           }
         })
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch groups: ${response.status} ${response.statusText}`)
         }
-        
+
         const data: Group[] = await response.json()
         // Fetch detailed info for each group to get contact count
         const groupsWithDetails = await Promise.all(
@@ -227,10 +227,10 @@ export default function ContactCollectionPage() {
     for (let i = 0; i < retries; i++) {
       try {
         setLoading(true)
-        
+
         // Wait for Clerk session to be ready
         await new Promise(resolve => setTimeout(resolve, 500))
-        
+
         const token = await getToken()
         if (!token) {
           console.error("No authentication token available, attempt:", i + 1)
@@ -248,11 +248,11 @@ export default function ContactCollectionPage() {
             'Authorization': `Bearer ${token}`
           }
         })
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch contacts: ${response.status} ${response.statusText}`)
         }
-        
+
         const data: Contact[] = await response.json()
         setContacts(data || [])
         break
@@ -272,10 +272,10 @@ export default function ContactCollectionPage() {
     for (let i = 0; i < retries; i++) {
       try {
         setLoadingGroupContacts(true)
-        
+
         // Wait for Clerk session to be ready
         await new Promise(resolve => setTimeout(resolve, 500))
-        
+
         const token = await getToken()
         if (!token) {
           console.error("No authentication token available, attempt:", i + 1)
@@ -293,11 +293,11 @@ export default function ContactCollectionPage() {
             'Authorization': `Bearer ${token}`
           }
         })
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch group contacts: ${response.status} ${response.statusText}`)
         }
-        
+
         const data: Contact[] = await response.json()
         setGroupContacts(data || [])
         break
@@ -436,7 +436,7 @@ export default function ContactCollectionPage() {
 
       if (response.ok) {
         const newContact: Contact = await response.json()
-        
+
         // Add contact to group
         const groupResponse = await fetch(`${API_BASE_URL}/groups/${contactForm.groupId}/contacts`, {
           method: 'POST',
@@ -543,7 +543,7 @@ export default function ContactCollectionPage() {
       setLoading(true)
       const text = await csvFile.text()
       const lines = text.split('\n').filter((line: string) => line.trim())
-      
+
       if (lines.length < 2) {
         showToast("Error", "CSV file is empty or invalid", "error")
         return
@@ -551,14 +551,14 @@ export default function ContactCollectionPage() {
 
       const headers = lines[0].split(',').map((h: string) => h.trim().toLowerCase())
       const contactsToImport: ContactToImport[] = []
-      
+
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map((v: string) => v.trim())
         const contact: ContactToImport = {
           name: "",
           phone_number: ""
         }
-        
+
         headers.forEach((header: string, index: number) => {
           if (header.includes('name')) {
             contact.name = values[index]
@@ -568,7 +568,7 @@ export default function ContactCollectionPage() {
             contact.email = values[index] || ""
           }
         })
-        
+
         if (contact.name && contact.phone_number) {
           contactsToImport.push(contact)
         }
@@ -598,7 +598,7 @@ export default function ContactCollectionPage() {
 
       if (bulkResponse.ok) {
         const result: BulkImportResponse = await bulkResponse.json()
-        
+
         // Get newly created contacts
         const allContactsResponse = await fetch(`${API_BASE_URL}/contacts/?skip=0&limit=1000&is_active=true`, {
           headers: {
@@ -606,10 +606,10 @@ export default function ContactCollectionPage() {
           }
         })
         const allContacts: Contact[] = await allContactsResponse.json()
-        
+
         // Get IDs of newly created contacts (last N contacts)
         const newContactIds = allContacts.slice(-result.created).map((c: Contact) => c.id)
-        
+
         if (newContactIds.length > 0) {
           // Add contacts to group
           await fetch(`${API_BASE_URL}/groups/${importGroupId}/contacts`, {
@@ -765,6 +765,14 @@ export default function ContactCollectionPage() {
     setCreateGroupForm({ name: "", description: "" })
   }
 
+  // Handle dialog state changes for create group
+  const handleCreateDialogChange = (open: boolean): void => {
+    setIsCreateGroupOpen(open)
+    if (!open) {
+      resetCreateGroupForm()
+    }
+  }
+
   // Open view group contacts dialog
   const openViewGroupContactsDialog = (group: Group): void => {
     setSelectedGroupForView(group)
@@ -806,7 +814,7 @@ export default function ContactCollectionPage() {
       (contact.name || "").toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
       (contact.phone_number || "").includes(contactSearchQuery) ||
       (contact.email || "").toLowerCase().includes(contactSearchQuery.toLowerCase())
-    
+
     return matchesSearch
   })
 
@@ -1036,10 +1044,7 @@ export default function ContactCollectionPage() {
                   </CardTitle>
                   <CardDescription>Organize contacts into groups</CardDescription>
                 </div>
-                <Dialog open={isCreateGroupOpen} onOpenChange={(open) => {
-                  setIsCreateGroupOpen(open)
-                  if (!open) resetCreateGroupForm()
-                }}>
+                <Dialog open={isCreateGroupOpen} onOpenChange={handleCreateDialogChange}>
                   <DialogTrigger asChild>
                     <Button className="gap-2">
                       <Plus className="h-4 w-4" />
@@ -1074,7 +1079,7 @@ export default function ContactCollectionPage() {
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsCreateGroupOpen(false)}>Cancel</Button>
+                      <Button variant="outline" onClick={() => handleCreateDialogChange(false)}>Cancel</Button>
                       <Button onClick={handleCreateGroup} disabled={loading}>
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Create Group
