@@ -48,6 +48,11 @@ export function DashboardNavbar() {
   const { formatCurrency, calculateMessages } = useCurrency()
   const [isRefreshing, setIsRefreshing] = React.useState(false)
 
+  // Debug: Log wallet data updates
+  React.useEffect(() => {
+    console.log("[Navbar] Wallet data updated:", walletData);
+  }, [walletData])
+
   const handleLogout = () => {
     router.push("/login")
   }

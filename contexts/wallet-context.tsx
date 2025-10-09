@@ -61,31 +61,36 @@ export function WalletProvider({
 
   // Fetch wallet data
   const fetchWallet = React.useCallback(async () => {
-    // Don't fetch if Clerk hasn't loaded or user isn't signed in
-    if (!isLoaded || !isSignedIn) {
-      console.log("[Wallet] Skipping fetch - not ready or not signed in");
+    // Don't fetch if Clerk hasn't loaded
+    if (!isLoaded) {
+      console.log("[Wallet] Waiting for Clerk to load");
+      return;
+    }
+
+    // Don't fetch if user isn't signed in
+    if (!isSignedIn) {
+      console.log("[Wallet] User not signed in");
       return;
     }
 
     // Check if cache is valid and data exists
     if (walletCache && isCacheValid(walletCache)) {
       console.log("[Wallet] Using cached data");
-      // No need to setWalletData here, as it's already in the store
       return;
     }
 
     try {
       // Wait a bit for session to be ready
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Get token - Clerk will use the default JWT
       const token = await getToken();
       if (!token) {
-        console.warn("No authentication token available for wallet");
+        console.warn("[Wallet] No authentication token available");
         return;
       }
 
-      console.log("[Wallet] Token obtained for wallet fetch");
+      console.log("[Wallet] Token obtained, fetching wallet data");
 
       const response = await fetch(`${API_BASE_URL}/account/wallet`, {
         headers: {
@@ -98,7 +103,6 @@ export function WalletProvider({
       });
 
       if (!response) {
-        // Network error, silently fail
         return;
       }
 
@@ -110,6 +114,7 @@ export function WalletProvider({
 
       const data = await response.json();
       console.log("[Wallet] Wallet data received:", data);
+      
       // Transform API response to match store structure
       setWalletData({
         balance: data.wallet_balance,
@@ -228,8 +233,13 @@ export function WalletProvider({
     return date.toLocaleDateString();
   };
 
-  // Initial fetch
+  // Initial fetch - only when Clerk is loaded and user is signed in
   React.useEffect(() => {
+    if (!isLoaded || !isSignedIn) {
+      setLoading(false);
+      return;
+    }
+
     const initialFetch = async () => {
       setLoading(true);
       await Promise.all([fetchWallet(), fetchNotifications()]);
@@ -237,7 +247,7 @@ export function WalletProvider({
     };
 
     initialFetch();
-  }, [fetchWallet, fetchNotifications]);
+  }, [isLoaded, isSignedIn, fetchWallet, fetchNotifications]);
 
   // Set up polling
   React.useEffect(() => {
@@ -271,14 +281,18 @@ export function WalletProvider({
   );
 
   // Use wallet data from Zustand store, or null if not loaded/cached
-  const walletData = walletCache?.data ? {
-    id: "",
-    username: "",
-    email: "",
-    wallet_balance: walletCache.data.balance,
-    clerk_user_id: "",
-    created_at: walletCache.data.last_updated || ""
-  } : null;
+  const walletData = React.useMemo(() => {
+    if (!walletCache?.data) return null;
+    
+    return {
+      id: "",
+      username: "",
+      email: "",
+      wallet_balance: walletCache.data.balance,
+      clerk_user_id: "",
+      created_at: walletCache.data.last_updated || ""
+    };
+  }, [walletCache]);
 
   const value: WalletContextType = {
     walletData,
