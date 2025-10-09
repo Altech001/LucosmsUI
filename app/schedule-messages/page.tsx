@@ -188,9 +188,12 @@ const scheduleAPI = {
 
 // Groups API
 const groupsAPI = {
-  getGroups: async (): Promise<Group[]> => {
+  getGroups: async (token: string): Promise<Group[]> => {
     const response = await fetch(`${API_BASE_URL}/groups/?skip=0&limit=100`, {
-      headers: { accept: "application/json" },
+      headers: { 
+        accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
     })
     if (!response.ok) {
       throw new Error("Failed to fetch groups")
@@ -201,7 +204,9 @@ const groupsAPI = {
     const groupsWithDetails = await Promise.all(
       data.map(async (group: Group): Promise<Group> => {
         try {
-          const detailResponse = await fetch(`${API_BASE_URL}/groups/${group.id}`)
+          const detailResponse = await fetch(`${API_BASE_URL}/groups/${group.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
           if (detailResponse.ok) {
             const details: Group & { contact_count: number } = await detailResponse.json()
             return { ...group, contact_count: details.contact_count || 0 }
@@ -255,13 +260,23 @@ export default function ScheduleMessagesPage() {
 
   // Fetch groups
   const fetchGroups = React.useCallback(async () => {
+    if (!authChecked) return
+    
     try {
-      const data = await groupsAPI.getGroups()
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      const token = await getToken()
+      if (!token) {
+        console.warn("No authentication token available for groups")
+        return
+      }
+
+      const data = await groupsAPI.getGroups(token)
       setGroups(data)
     } catch (error) {
-      showToast("Error", error instanceof Error ? error.message : "Failed to fetch schedules", "error")
+      showToast("Error", error instanceof Error ? error.message : "Failed to fetch groups", "error")
     }
-  }, [])
+  }, [authChecked, getToken, showToast])
 
   // Fetch schedules with retry logic
   const fetchSchedules = React.useCallback(async () => {
