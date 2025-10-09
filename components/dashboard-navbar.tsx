@@ -26,6 +26,7 @@ import { useWallet, useCurrency } from "@/contexts/wallet-context"
 import * as React from "react"
 import { UserButton } from "@clerk/nextjs";
 import dynamic from "next/dynamic";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const ClientUserButton = dynamic(
   () => import("@clerk/nextjs").then((mod) => mod.UserButton),
@@ -110,6 +111,7 @@ export function DashboardNavbar() {
           <span className="sr-only">Refresh</span>
         </Button>
 
+        <ThemeToggle />
 
         <Dialog>
           <DialogTrigger asChild>
