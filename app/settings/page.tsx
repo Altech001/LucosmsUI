@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Bell, Code, DeleteIcon, Edit, Lock, Package, Plus, Ticket, Trash2 } from "lucide-react"
-import { useState } from "react"
+import { Bell, Code, DeleteIcon, Edit, Lock, Package, Plus, Ticket, Trash2, Loader2 } from "lucide-react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 
 const mockServices = [
   {
@@ -36,9 +37,33 @@ const mockPromoCodes = [
 ]
 
 export default function SettingsPage() {
+  const { isLoaded, isSignedIn, getToken } = useAuth()
+  const router = useRouter()
   const [services] = useState(mockServices)
   const [promoCodes] = useState(mockPromoCodes)
   const [promoInput, setPromoInput] = useState("")
+  const [authChecked, setAuthChecked] = useState(false)
+
+  useEffect(() => {
+    if (!isLoaded) return
+
+    if (!isSignedIn) {
+      router.push("/sign-in")
+      return
+    }
+
+    setAuthChecked(true)
+  }, [isLoaded, isSignedIn, router])
+
+  if (!isLoaded || !authChecked) {
+    return (
+      <PageLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </PageLayout>
+    )
+  }
 
   return (
     <PageLayout>

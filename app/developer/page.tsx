@@ -6,8 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/breadcrumb";
-import { Plus, Copy, Eye, EyeOff, Trash2, Key, Calendar, Activity, AlertCircle, CheckCircle2, Sparkles } from "lucide-react";
+import { Plus, Copy, Eye, EyeOff, Trash2, Key, Calendar, Activity, AlertCircle, CheckCircle2, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 
 interface ApiKeyResponse {
   created: string;
@@ -31,43 +33,80 @@ interface ApiKey {
 }
 
 export default function DeveloperPage() {
+  const { isLoaded, isSignedIn, getToken } = useAuth()
+  const router = useRouter()
   const [apiKeys, setApiKeys] = React.useState<ApiKey[]>([]);
   const [visibleKeys, setVisibleKeys] = React.useState<Set<string>>(new Set());
   const [copiedKey, setCopiedKey] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [authChecked, setAuthChecked] = React.useState(false);
 
   React.useEffect(() => {
-    fetchApiKeys();
-  }, []);
+    if (!isLoaded) return
+
+    if (!isSignedIn) {
+      router.push("/sign-in")
+      return
+    }
+
+    setAuthChecked(true)
+  }, [isLoaded, isSignedIn, router])
+
+  React.useEffect(() => {
+    if (authChecked) {
+      fetchApiKeys();
+    }
+  }, [authChecked]);
 
   const fetchApiKeys = async () => {
     setLoading(true);
-    try {
-      const response = await fetch("https://luco-backend.onrender.com/api/v1/api_key/list", {
-        method: "GET",
-        headers: {
-          "Accept": "application/json",
-        },
-      });
+    const retries = 3;
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const token = await getToken();
+        if (!token) {
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+          setError("Authentication required");
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch("https://luco-backend.onrender.com/api/v1/api_key/list", {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+        });
       if (!response.ok) throw new Error("Failed to fetch API keys");
-      const data: ApiKeyResponse[] = await response.json();
-      setApiKeys(
-        data.map((key) => ({
-          id: key.id.toString(),
-          key: key.key,
-          full_key: key.full_key,
-          is_active: key.is_active,
-          name: key.name || `Prod API Key ${key.id}`,
-          created: key.created || "Unknown",
-          lastUsed: key.lastUsed || "Never",
-          status: key.is_active ? "active" : "inactive",
-        }))
-      );
-    } catch (err) {
-      setError("Error fetching API keys");
-    } finally {
-      setLoading(false);
+        const data: ApiKeyResponse[] = await response.json();
+        setApiKeys(
+          data.map((key) => ({
+            id: key.id.toString(),
+            key: key.key,
+            full_key: key.full_key,
+            is_active: key.is_active,
+            name: key.name || `Prod API Key ${key.id}`,
+            created: key.created || "Unknown",
+            lastUsed: key.lastUsed || "Never",
+            status: key.is_active ? "active" : "inactive",
+          }))
+        );
+        setLoading(false);
+        return;
+      } catch (err) {
+        if (i === retries - 1) {
+          setError("Error fetching API keys");
+          setLoading(false);
+        }
+      }
     }
   };
 
@@ -75,11 +114,19 @@ export default function DeveloperPage() {
     setLoading(true);
     setError(null);
     try {
+      const token = await getToken();
+      if (!token) {
+        setError("Authentication required");
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch("https://luco-backend.onrender.com/api/v1/api_key/generate", {
         method: "POST",
         headers: {
           "Accept": "application/json",
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({}),
       });
@@ -96,10 +143,18 @@ export default function DeveloperPage() {
     if (!confirm("Are you sure you want to delete this API key? This action cannot be undone.")) return;
     setLoading(true);
     try {
+      const token = await getToken();
+      if (!token) {
+        setError("Authentication required");
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch(`https://luco-backend.onrender.com/api/v1/api_key/delete/${id}`, {
         method: "DELETE",
         headers: {
           "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
       });
       if (!response.ok) throw new Error("Failed to delete API key");
@@ -132,6 +187,16 @@ export default function DeveloperPage() {
   const maskKey = (key: string) => {
     return key.slice(0, 12) + "•".repeat(20) + key.slice(-4);
   };
+
+  if (!isLoaded || !authChecked) {
+    return (
+      <PageLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </PageLayout>
+    )
+  }
 
   return (
     <PageLayout>

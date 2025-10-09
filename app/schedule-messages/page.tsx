@@ -22,6 +22,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/contexts/toast-context"
 import { useAuth } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 
 // Types
 interface ScheduledMessage {
@@ -217,8 +218,10 @@ const groupsAPI = {
 
 export default function ScheduleMessagesPage() {
   const { showToast } = useToast()
-  const { getToken } = useAuth()
+  const { getToken, isLoaded, isSignedIn } = useAuth()
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [authChecked, setAuthChecked] = React.useState(false)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false)
   const [scheduledMessages, setScheduledMessages] = React.useState<ScheduledMessage[]>([])
@@ -238,6 +241,18 @@ export default function ScheduleMessagesPage() {
     time: "",
   })
 
+  // Check authentication
+  React.useEffect(() => {
+    if (!isLoaded) return
+
+    if (!isSignedIn) {
+      router.push("/sign-in")
+      return
+    }
+
+    setAuthChecked(true)
+  }, [isLoaded, isSignedIn, router])
+
   // Fetch groups
   const fetchGroups = React.useCallback(async () => {
     try {
@@ -248,25 +263,39 @@ export default function ScheduleMessagesPage() {
     }
   }, [])
 
-  // Fetch schedules
+  // Fetch schedules with retry logic
   const fetchSchedules = React.useCallback(async () => {
+    if (!authChecked) return
+    
     setLoading(true)
-    try {
-      const token = await getToken()
-      if (!token) {
-        showToast("Error", "Authentication required", "error")
-        return
-      }
+    const retries = 3
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        const token = await getToken()
+        if (!token) {
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            continue
+          }
+          showToast("Error", "Authentication required", "error")
+          return
+        }
 
-      const params = statusFilter !== "all" ? { status: statusFilter, limit: 100 } : { limit: 100 }
-      const data = await scheduleAPI.getSchedules(params, token)
-      setScheduledMessages(data)
-    } catch (error) {
-      showToast("Error", error instanceof Error ? error.message : "Failed to fetch schedules", "error")
-    } finally {
-      setLoading(false)
+        const params = statusFilter !== "all" ? { status: statusFilter, limit: 100 } : { limit: 100 }
+        const data = await scheduleAPI.getSchedules(params, token)
+        setScheduledMessages(data)
+        break
+      } catch (error) {
+        if (i === retries - 1) {
+          showToast("Error", error instanceof Error ? error.message : "Failed to fetch schedules", "error")
+        }
+      }
     }
-  }, [statusFilter])
+    setLoading(false)
+  }, [statusFilter, authChecked, getToken, showToast])
 
   React.useEffect(() => {
     fetchSchedules()
@@ -466,6 +495,16 @@ export default function ScheduleMessagesPage() {
       thisMonth: scheduledMessages.length,
     }
   }, [scheduledMessages])
+
+  if (!isLoaded || !authChecked) {
+    return (
+      <PageLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </PageLayout>
+    )
+  }
 
   return (
     <PageLayout>
