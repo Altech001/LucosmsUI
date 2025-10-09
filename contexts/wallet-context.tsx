@@ -110,7 +110,12 @@ export function WalletProvider({
 
       const data = await response.json();
       console.log("[Wallet] Wallet data received:", data);
-      setWalletData(data); // Use Zustand store to set data
+      // Transform API response to match store structure
+      setWalletData({
+        balance: data.wallet_balance,
+        currency: "UGX",
+        last_updated: new Date().toISOString()
+      });
       setError(null);
     } catch (error) {
       console.error("[Wallet] Error fetching wallet:", error);
@@ -266,7 +271,14 @@ export function WalletProvider({
   );
 
   // Use wallet data from Zustand store, or null if not loaded/cached
-  const walletData = walletCache?.data || null;
+  const walletData = walletCache?.data ? {
+    id: "",
+    username: "",
+    email: "",
+    wallet_balance: walletCache.data.balance,
+    clerk_user_id: "",
+    created_at: walletCache.data.last_updated || ""
+  } : null;
 
   const value: WalletContextType = {
     walletData,

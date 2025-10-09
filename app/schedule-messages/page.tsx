@@ -345,73 +345,61 @@ export default function ScheduleMessagesPage() {
   // Handle create schedule
   const handleCreateSchedule = async () => {
     if (!formData.message || !formData.date || !formData.time) {
-        showToast("Validation Error", "Please fill in all required fields", "error")
-
+      showToast("Validation Error", "Please fill in all required fields", "error")
       return
     }
 
     setLoading(true)
-    const retries = 3
     
-    for (let i = 0; i < retries; i++) {
-      try {
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        const token = await getToken()
-        if (!token) {
-          if (i < retries - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000))
-            continue
-          }
-          showToast("Error", "Authentication required", "error")
-          return
-        }
-
-        const scheduledTime = new Date(`${formData.date}T${formData.time}`).toISOString()
-
-        if (formData.recipientType === "single") {
-          if (!formData.recipient) {
-            throw new Error("Recipient phone number is required")
-          }
-          await scheduleAPI.createSchedule({
-            message: formData.message,
-            recipient: formData.recipient,
-            scheduled_time: scheduledTime,
-            sender_id: formData.senderId,
-          }, token)
-          showToast("Success", "Schedule created successfully", "success")
-        } else {
-          if (formData.selectedGroups.length === 0) {
-            throw new Error("At least one group must be selected")
-          }
-          await scheduleAPI.createBulkSchedule({
-            message: formData.message,
-            group_ids: formData.selectedGroups,
-            scheduled_time: scheduledTime,
-            sender_id: formData.senderId,
-          }, token)
-          showToast("Success", "Bulk schedule created successfully", "success")
-        }
-
-        setIsCreateDialogOpen(false)
-        setFormData({
-          recipient: "",
-          recipientType: "single",
-          selectedGroups: [],
-          message: "",
-          senderId: "ATUpdates",
-          date: "",
-          time: "",
-        })
-        fetchSchedules()
-        break
-      } catch (error) {
-        if (i === retries - 1) {
-          showToast("Error", error instanceof Error ? error.message : "Failed to create schedule", "error")
-        }
+    try {
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
       }
+
+      const scheduledTime = new Date(`${formData.date}T${formData.time}`).toISOString()
+
+      if (formData.recipientType === "single") {
+        if (!formData.recipient) {
+          throw new Error("Recipient phone number is required")
+        }
+        await scheduleAPI.createSchedule({
+          message: formData.message,
+          recipient: formData.recipient,
+          scheduled_time: scheduledTime,
+          sender_id: formData.senderId,
+        }, token)
+        showToast("Success", "Schedule created successfully", "success")
+      } else {
+        if (formData.selectedGroups.length === 0) {
+          throw new Error("At least one group must be selected")
+        }
+        await scheduleAPI.createBulkSchedule({
+          message: formData.message,
+          group_ids: formData.selectedGroups,
+          scheduled_time: scheduledTime,
+          sender_id: formData.senderId,
+        }, token)
+        showToast("Success", "Bulk schedule created successfully", "success")
+      }
+
+      setIsCreateDialogOpen(false)
+      setFormData({
+        recipient: "",
+        recipientType: "single",
+        selectedGroups: [],
+        message: "",
+        senderId: "ATUpdates",
+        date: "",
+        time: "",
+      })
+      fetchSchedules()
+    } catch (error) {
+      showToast("Error", error instanceof Error ? error.message : "Failed to create schedule", "error")
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   // Handle update schedule
