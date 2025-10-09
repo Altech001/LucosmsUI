@@ -82,7 +82,15 @@ export function WalletProvider({
           accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
+      }).catch(err => {
+        console.warn("[Wallet] Network error - backend may be unavailable:", err.message);
+        return null;
       });
+
+      if (!response) {
+        // Network error, silently fail
+        return;
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -95,7 +103,7 @@ export function WalletProvider({
       setError(null);
     } catch (err) {
       console.error("Error fetching wallet:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch wallet");
+      // Don't set error state for network failures to avoid disrupting the app
     }
   }, [getToken, isLoaded, isSignedIn]);
 
@@ -126,7 +134,15 @@ export function WalletProvider({
             Authorization: `Bearer ${token}`,
           },
         }
-      );
+      ).catch(err => {
+        console.warn("[Notifications] Network error - backend may be unavailable:", err.message);
+        return null;
+      });
+
+      if (!response) {
+        // Network error, silently fail
+        return;
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -176,7 +192,7 @@ export function WalletProvider({
       setNotifications(transformedNotifications);
       setError(null);
     } catch (err) {
-      console.error("Error fetching notifications:", err);
+      console.warn("[Notifications] Error fetching notifications:", err);
       // Don't set error for notifications to avoid disrupting the app
     }
   }, [getToken, isLoaded, isSignedIn]);
