@@ -21,6 +21,8 @@ import {
   XCircle
 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { useAuth } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 
 interface Message {
   id: number
@@ -113,6 +115,8 @@ const formatDate = (dateString: string) => {
 }
 
 export default function HistoryPage() {
+  const { isLoaded, isSignedIn, getToken } = useAuth()
+  const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
   const [spending, setSpending] = useState<SpendingReport | null>(null)
@@ -123,16 +127,45 @@ export default function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(0)
   const itemsPerPage = 10
 
+  // Redirect if not signed in
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push("/sign-in")
+    }
+  }, [isLoaded, isSignedIn, router])
+
   useEffect(() => {
     const fetchData = async () => {
+      if (!isSignedIn || !getToken) return
+
       try {
         setLoading(true)
         setError(null)
 
+        const token = await getToken()
+        if (!token) {
+          throw new Error("No authentication token available")
+        }
+
         const [messagesRes, summaryRes, spendingRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/account/reports/messages?skip=0&limit=100`),
-          fetch(`${API_BASE_URL}/account/reports/summary`),
-          fetch(`${API_BASE_URL}/account/reports/spending`),
+          fetch(`${API_BASE_URL}/account/reports/messages?skip=0&limit=100`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }),
+          fetch(`${API_BASE_URL}/account/reports/summary`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }),
+          fetch(`${API_BASE_URL}/account/reports/spending`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }),
         ])
 
         if (!messagesRes.ok || !summaryRes.ok || !spendingRes.ok) {
@@ -153,8 +186,10 @@ export default function HistoryPage() {
       }
     }
 
-    fetchData()
-  }, [])
+    if (isSignedIn) {
+      fetchData()
+    }
+  }, [isSignedIn, getToken])
 
   const filteredMessages = messages.filter((msg) => {
     const matchesSearch =

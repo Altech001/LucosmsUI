@@ -14,6 +14,8 @@ import { Breadcrumb } from "@/components/breadcrumb"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/contexts/toast-context"
 import { Input } from "@/components/ui/input"
+import { useAuth } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 
 // Types
 interface Group {
@@ -69,11 +71,12 @@ const API_BASE_URL = "https://luco-backend.onrender.com/api/v1"
 
 // API Functions
 const smsAPI = {
-  sendSMS: async (data: SendSMSRequest): Promise<SendSMSResponse> => {
+  sendSMS: async (token: string, data: SendSMSRequest): Promise<SendSMSResponse> => {
     const response = await fetch(`${API_BASE_URL}/account/sms/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
         accept: "application/json",
       },
       body: JSON.stringify(data),
@@ -85,11 +88,12 @@ const smsAPI = {
     return response.json()
   },
 
-  sendBulkSMS: async (data: SendBulkSMSRequest): Promise<SendSMSResponse> => {
+  sendBulkSMS: async (token: string, data: SendBulkSMSRequest): Promise<SendSMSResponse> => {
     const response = await fetch(`${API_BASE_URL}/account/sms/send-bulk`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
         accept: "application/json",
       },
       body: JSON.stringify(data),
@@ -101,9 +105,12 @@ const smsAPI = {
     return response.json()
   },
 
-  getGroups: async (): Promise<Group[]> => {
+  getGroups: async (token: string): Promise<Group[]> => {
     const response = await fetch(`${API_BASE_URL}/groups/?skip=0&limit=100`, {
-      headers: { accept: "application/json" },
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        accept: "application/json" 
+      },
     })
     if (!response.ok) {
       throw new Error("Failed to fetch groups")
@@ -113,7 +120,9 @@ const smsAPI = {
     const groupsWithDetails = await Promise.all(
       data.map(async (group: Group): Promise<Group> => {
         try {
-          const detailResponse = await fetch(`${API_BASE_URL}/groups/${group.id}`)
+          const detailResponse = await fetch(`${API_BASE_URL}/groups/${group.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
           if (detailResponse.ok) {
             const details: Group & { contact_count: number } = await detailResponse.json()
             return { ...group, contact_count: details.contact_count || 0 }
@@ -127,9 +136,12 @@ const smsAPI = {
     return groupsWithDetails
   },
 
-  getWallet: async (): Promise<WalletData> => {
+  getWallet: async (token: string): Promise<WalletData> => {
     const response = await fetch(`${API_BASE_URL}/account/wallet`, {
-      headers: { accept: "application/json" },
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        accept: "application/json" 
+      },
     })
     if (!response.ok) {
       throw new Error("Failed to fetch wallet data")
@@ -139,6 +151,8 @@ const smsAPI = {
 }
 
 export default function ComposePage() {
+  const { isLoaded, isSignedIn, getToken } = useAuth()
+  const router = useRouter()
   const { showToast } = useToast()
   const [message, setMessage] = React.useState("")
   const [senderId, setSenderId] = React.useState("ATUpdates")
@@ -150,6 +164,13 @@ export default function ComposePage() {
   const [isSending, setIsSending] = React.useState(false)
   const [isLoadingGroups, setIsLoadingGroups] = React.useState(true)
   const [isLoadingWallet, setIsLoadingWallet] = React.useState(true)
+
+  // Redirect if not signed in
+  React.useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push("/sign-in")
+    }
+  }, [isLoaded, isSignedIn, router])
 
   const messageLength = message.length
   const smsSegments = Math.ceil(messageLength / 160) || 1
@@ -165,34 +186,44 @@ export default function ComposePage() {
 
   // Fetch groups
   const fetchGroups = React.useCallback(async () => {
+    if (!isSignedIn || !getToken) return
+    
     try {
       setIsLoadingGroups(true)
-      const data = await smsAPI.getGroups()
+      const token = await getToken()
+      if (!token) throw new Error("No authentication token")
+      const data = await smsAPI.getGroups(token)
       setGroups(data)
     } catch (error) {
       showToast("Error", error instanceof Error ? error.message : "Failed to fetch groups", "error")
     } finally {
       setIsLoadingGroups(false)
     }
-  }, [showToast])
+  }, [isSignedIn, getToken, showToast])
 
   // Fetch wallet
   const fetchWallet = React.useCallback(async () => {
+    if (!isSignedIn || !getToken) return
+    
     try {
       setIsLoadingWallet(true)
-      const data = await smsAPI.getWallet()
+      const token = await getToken()
+      if (!token) throw new Error("No authentication token")
+      const data = await smsAPI.getWallet(token)
       setWalletData(data)
     } catch (error) {
       showToast("Error", error instanceof Error ? error.message : "Failed to fetch wallet", "error")
     } finally {
       setIsLoadingWallet(false)
     }
-  }, [showToast])
+  }, [isSignedIn, getToken, showToast])
 
   React.useEffect(() => {
-    fetchGroups()
-    fetchWallet()
-  }, [fetchGroups, fetchWallet])
+    if (isSignedIn) {
+      fetchGroups()
+      fetchWallet()
+    }
+  }, [isSignedIn, fetchGroups, fetchWallet])
 
   const handleGroupToggle = (groupId: number) => {
     setSelectedGroups((prev) => (prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]))
@@ -234,16 +265,19 @@ export default function ComposePage() {
 
     setIsSending(true)
     try {
+      const token = await getToken()
+      if (!token) throw new Error("No authentication token")
+      
       let response: SendSMSResponse
 
       if (recipientType === "single") {
-        response = await smsAPI.sendSMS({
+        response = await smsAPI.sendSMS(token, {
           message: message.trim(),
           recipient: [singleRecipient.trim()],
           sender_id: senderId.trim(),
         })
       } else {
-        response = await smsAPI.sendBulkSMS({
+        response = await smsAPI.sendBulkSMS(token, {
           message: message.trim(),
           group_ids: selectedGroups,
           sender_id: senderId.trim(),
