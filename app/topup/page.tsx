@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,9 +60,12 @@ const API_BASE_URL = "https://luco-backend.onrender.com/api/v1";
 
 // API Functions
 const walletAPI = {
-  getWallet: async (): Promise<WalletData> => {
+  getWallet: async (token: string): Promise<WalletData> => {
     const response = await fetch(`${API_BASE_URL}/account/wallet`, {
-      headers: { accept: "application/json" },
+      headers: {
+        accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
     });
     if (!response.ok) {
       throw new Error("Failed to fetch wallet data");
@@ -68,12 +73,13 @@ const walletAPI = {
     return response.json();
   },
 
-  topUp: async (data: TopUpRequest): Promise<TopUpResponse> => {
+  topUp: async (token: string, data: TopUpRequest): Promise<TopUpResponse> => {
     const response = await fetch(`${API_BASE_URL}/account/wallet/topup`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         accept: "application/json",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(data),
     });
@@ -84,10 +90,13 @@ const walletAPI = {
     return response.json();
   },
 
-  getTransactions: async (params?: {
-    skip?: number;
-    limit?: number;
-  }): Promise<Transaction[]> => {
+  getTransactions: async (
+    token: string,
+    params?: {
+      skip?: number;
+      limit?: number;
+    }
+  ): Promise<Transaction[]> => {
     const queryParams = new URLSearchParams();
     queryParams.append("skip", (params?.skip || 0).toString());
     queryParams.append("limit", (params?.limit || 100).toString());
@@ -95,7 +104,10 @@ const walletAPI = {
     const response = await fetch(
       `${API_BASE_URL}/account/wallet/transactions?${queryParams.toString()}`,
       {
-        headers: { accept: "application/json" },
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       }
     );
     if (!response.ok) {
@@ -114,6 +126,8 @@ const topupOptions = [
 ];
 
 export default function TopUpPage() {
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const router = useRouter();
   const { showToast } = useToast();
   const [walletData, setWalletData] = React.useState<WalletData | null>(null);
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
@@ -124,12 +138,35 @@ export default function TopUpPage() {
   );
   const [customAmount, setCustomAmount] = React.useState("");
   const [processingTopUp, setProcessingTopUp] = React.useState(false);
+  const [authChecked, setAuthChecked] = React.useState(false);
+
+  // Check authentication
+  React.useEffect(() => {
+    if (!isLoaded) return;
+
+    if (!isSignedIn) {
+      router.push("/sign-in");
+      return;
+    }
+
+    setAuthChecked(true);
+  }, [isLoaded, isSignedIn, router]);
 
   // Fetch wallet data
   const fetchWallet = React.useCallback(async () => {
+    if (!authChecked) return;
+
     try {
       setFetchingWallet(true);
-      const data = await walletAPI.getWallet();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const token = await getToken();
+      if (!token) {
+        showToast("Error", "Authentication required", "error");
+        return;
+      }
+
+      const data = await walletAPI.getWallet(token);
       setWalletData(data);
     } catch (error) {
       showToast(
@@ -140,12 +177,22 @@ export default function TopUpPage() {
     } finally {
       setFetchingWallet(false);
     }
-  }, [showToast]);
+  }, [authChecked, getToken, showToast]);
 
   // Fetch transactions
   const fetchTransactions = React.useCallback(async () => {
+    if (!authChecked) return;
+
     try {
-      const data = await walletAPI.getTransactions({ limit: 10 });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const token = await getToken();
+      if (!token) {
+        showToast("Error", "Authentication required", "error");
+        return;
+      }
+
+      const data = await walletAPI.getTransactions(token, { limit: 10 });
       setTransactions(data);
     } catch (error) {
       showToast(
@@ -154,19 +201,29 @@ export default function TopUpPage() {
         "error"
       );
     }
-  }, [showToast]);
+  }, [authChecked, getToken, showToast]);
 
   React.useEffect(() => {
-    fetchWallet();
-    fetchTransactions();
-  }, [fetchWallet, fetchTransactions]);
+    if (authChecked) {
+      fetchWallet();
+      fetchTransactions();
+    }
+  }, [authChecked, fetchWallet, fetchTransactions]);
 
   // Handle preset top-up
   const handlePresetTopUp = async (amount: number) => {
     setSelectedAmount(amount);
     setProcessingTopUp(true);
     try {
-      await walletAPI.topUp({ amount });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const token = await getToken();
+      if (!token) {
+        showToast("Error", "Authentication required", "error");
+        return;
+      }
+
+      await walletAPI.topUp(token, { amount });
       showToast(
         "Success",
         `Successfully topped up UGX ${amount.toLocaleString()}`,
@@ -206,7 +263,15 @@ export default function TopUpPage() {
 
     setProcessingTopUp(true);
     try {
-      await walletAPI.topUp({ amount: Math.floor(amount) });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const token = await getToken();
+      if (!token) {
+        showToast("Error", "Authentication required", "error");
+        return;
+      }
+
+      await walletAPI.topUp(token, { amount: Math.floor(amount) });
       showToast(
         "Success",
         `Successfully topped up UGX ${amount.toLocaleString()}`,
