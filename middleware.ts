@@ -1,21 +1,23 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 
-// Define public routes
-const isPublicRoute = createRouteMatcher(["/", "/sign-in(.*)", "/sign-up(.*)", "/favicon.ico"]);
+// Define public routes that don't require authentication
+const isPublicRoute = createRouteMatcher([
+  "/",
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+  "/api/webhooks(.*)",
+]);
 
 export default clerkMiddleware(async (auth, request) => {
-  const { userId, redirectToSignIn } = await auth();
-
-  // If the user is not authenticated and the route is not public, redirect to sign-in
-  if (!userId && !isPublicRoute(request)) {
-    return redirectToSignIn({ returnBackUrl: request.url });
+  // Protect all routes except public ones
+  if (!isPublicRoute(request)) {
+    await auth.protect();
   }
-
-  // Allow authenticated users to proceed to any route
-  return NextResponse.next();
 });
 
 export const config = {
-  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
 };
