@@ -54,10 +54,10 @@ export default function DeveloperPage() {
   }, [isLoaded, isSignedIn, router])
 
   React.useEffect(() => {
-    if (authChecked) {
+    if (authChecked && isSignedIn) {
       fetchApiKeys();
     }
-  }, [authChecked]);
+  }, [authChecked, isSignedIn]);
 
   const fetchApiKeys = async () => {
     setLoading(true);
@@ -256,12 +256,12 @@ export default function DeveloperPage() {
         {/* Header Section */}
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-none shadow-blue-500/30">
-              <Key className="h-6 w-6 text-white" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80">
+              <Key className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">Developer API Keys</h1>
-              <p className="text-sm text-slate-600">Manage and monitor your application access tokens</p>
+              <h1 className="text-2xl font-bold tracking-tight">Developer API Keys</h1>
+              <p className="text-sm text-muted-foreground">Manage and monitor your application access tokens</p>
             </div>
           </div>
         </div>
@@ -277,43 +277,43 @@ export default function DeveloperPage() {
 
         {/* Stats Grid */}
         <div className="grid gap-6 md:grid-cols-3">
-          <Card className="overflow-hidden border-slate-200 bg-white shadow-none transition-all hover:shadow-md">
+          <Card className="overflow-hidden border-border/40 bg-card/50 backdrop-blur shadow-none transition-all hover:shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-slate-600">Total Keys</p>
-                  <p className="text-3xl font-bold text-slate-900">{apiKeys.length}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total Keys</p>
+                  <p className="text-3xl font-bold">{apiKeys.length}</p>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600">
-                  <Key className="h-7 w-7 text-white" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+                  <Key className="h-7 w-7 text-primary" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border-slate-200 bg-white shadow-none transition-all hover:shadow-md">
+          <Card className="overflow-hidden border-border/40 bg-card/50 backdrop-blur shadow-none transition-all hover:shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-slate-600">Active Keys</p>
-                  <p className="text-3xl font-bold text-slate-900">{apiKeys.filter((k) => k.is_active).length}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Active Keys</p>
+                  <p className="text-3xl font-bold">{apiKeys.filter((k) => k.is_active).length}</p>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600">
-                  <CheckCircle2 className="h-7 w-7 text-white" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-500/10">
+                  <CheckCircle2 className="h-7 w-7 text-green-600 dark:text-green-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border-slate-200 shadow-none bg-white transition-all hover:shadow-md">
+          <Card className="overflow-hidden border-border/40 bg-card/50 backdrop-blur shadow-none transition-all hover:shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-slate-600">API Calls Today</p>
-                  <p className="text-3xl font-bold text-slate-900">12.5K</p>
+                  <p className="text-sm font-medium text-muted-foreground">API Calls Today</p>
+                  <p className="text-3xl font-bold">12.5K</p>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600">
-                  <Activity className="h-7 w-7 text-white" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-500/10">
+                  <Activity className="h-7 w-7 text-purple-600 dark:text-purple-400" />
                 </div>
               </div>
             </CardContent>
@@ -321,17 +321,17 @@ export default function DeveloperPage() {
         </div>
 
         {/* Action Section */}
-        <Card className="border-slate-200 bg-white shadow-none">
+        <Card className="border-border/40 bg-card/50 backdrop-blur shadow-none">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <h3 className="text-lg font-semibold text-slate-900">Generate New API Key</h3>
-                <p className="text-sm text-slate-600">Create a new access token for your application</p>
+                <h3 className="text-lg font-semibold">Generate New API Key</h3>
+                <p className="text-sm text-muted-foreground">Create a new access token for your application</p>
               </div>
               <Button 
                 onClick={generateApiKey} 
                 disabled={loading}
-                className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40"
+                className="gap-2"
               >
                 <Plus className="h-4 w-4" />
                 Generate Key
@@ -343,42 +343,42 @@ export default function DeveloperPage() {
         {/* API Keys List */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-900">Avaliable API Keys</h2>
-            {loading && <div className="text-sm text-slate-600">Loading...</div>}
+            <h2 className="text-xl font-bold">Available API Keys</h2>
+            {loading && <div className="text-sm text-muted-foreground">Loading...</div>}
           </div>
 
           {apiKeys.length === 0 && !loading ? (
-            <Card className="border-dashed border-slate-300 bg-slate-50 shadow-none">
+            <Card className="border-dashed border-border bg-muted/30 shadow-none">
               <CardContent className="flex flex-col items-center justify-center py-16">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200">
-                  <Key className="h-8 w-8 text-slate-400" />
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                  <Key className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <h3 className="mt-4 text-lg font-semibold text-slate-900">No API keys yet</h3>
-                <p className="mt-1 text-sm text-slate-600">Generate your first API key to get started</p>
+                <h3 className="mt-4 text-lg font-semibold">No API keys yet</h3>
+                <p className="mt-1 text-sm text-muted-foreground">Generate your first API key to get started</p>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-4">
               {apiKeys.map((apiKey) => (
-                <Card key={apiKey.id} className="overflow-hidden border-slate-200 bg-white shadow-none transition-all hover:shadow-md">
+                <Card key={apiKey.id} className="overflow-hidden border-border/40 bg-card/50 backdrop-blur shadow-none transition-all hover:shadow-md">
                   <CardContent className="p-6">
                     <div className="space-y-4">
                       <div className="flex items-start justify-between">
                         <div className="space-y-2">
                           <div className="flex items-center gap-3">
-                            <h3 className="text-lg font-semibold text-slate-900">{apiKey.name}</h3>
+                            <h3 className="text-lg font-semibold">{apiKey.name}</h3>
                             <Badge
                               className={cn(
                                 "rounded-full px-3 py-1 text-xs font-medium",
                                 apiKey.is_active
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-slate-100 text-slate-700"
+                                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                                  : "bg-muted text-muted-foreground"
                               )}
                             >
                               {apiKey.status}
                             </Badge>
                           </div>
-                          <div className="flex items-center gap-6 text-sm text-slate-600">
+                          <div className="flex items-center gap-6 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1.5">
                               <Calendar className="h-4 w-4" />
                               Created {apiKey.created}
@@ -392,7 +392,7 @@ export default function DeveloperPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          className="text-red-600 hover:bg-red-500/10 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                           onClick={() => deleteApiKey(apiKey.id)}
                           disabled={loading}
                         >
@@ -401,13 +401,13 @@ export default function DeveloperPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-sm text-slate-900">
+                        <div className="flex-1 rounded-lg border border-border bg-muted/50 p-4 font-mono text-sm">
                           {visibleKeys.has(apiKey.id) ? apiKey.full_key : maskKey(apiKey.full_key)}
                         </div>
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-12 w-12 border-slate-200 hover:bg-slate-50"
+                          className="h-12 w-12"
                           onClick={() => toggleKeyVisibility(apiKey.id)}
                         >
                           {visibleKeys.has(apiKey.id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -415,11 +415,11 @@ export default function DeveloperPage() {
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-12 w-12 border-slate-200 hover:bg-slate-50"
+                          className="h-12 w-12"
                           onClick={() => copyToClipboard(apiKey.full_key, apiKey.id)}
                         >
                           {copiedKey === apiKey.id ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                           ) : (
                             <Copy className="h-4 w-4" />
                           )}
@@ -434,15 +434,15 @@ export default function DeveloperPage() {
         </div>
 
         {/* Security Notice */}
-        <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50">
+        <Card className="border-amber-500/40 bg-amber-500/10 backdrop-blur">
           <CardContent className="p-6">
             <div className="flex gap-4">
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100">
-                <AlertCircle className="h-5 w-5 text-amber-600" />
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-amber-500/20">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div className="space-y-1">
-                <h3 className="font-semibold text-amber-900">Security Best Practices</h3>
-                <p className="text-sm leading-relaxed text-amber-800">
+                <h3 className="font-semibold text-amber-900 dark:text-amber-200">Security Best Practices</h3>
+                <p className="text-sm leading-relaxed text-amber-800 dark:text-amber-300">
                   Never expose your API keys in client-side code, public repositories, or share them via unsecured channels. 
                   If you suspect a key has been compromised, delete it immediately and generate a replacement.
                 </p>
