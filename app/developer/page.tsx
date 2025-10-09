@@ -41,6 +41,11 @@ export default function DeveloperPage() {
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
   const [authChecked, setAuthChecked] = React.useState(false);
+  const [hasFetched, setHasFetched] = React.useState(false);
+  const cacheRef = React.useRef<{ data: ApiKey[] | null; timestamp: number | null }>({ 
+    data: null, 
+    timestamp: null 
+  });
 
   React.useEffect(() => {
     if (!isLoaded) return
@@ -54,117 +59,104 @@ export default function DeveloperPage() {
   }, [isLoaded, isSignedIn, router])
 
   React.useEffect(() => {
-    if (authChecked && isSignedIn) {
+    if (authChecked && isSignedIn && !hasFetched) {
       fetchApiKeys();
+      setHasFetched(true);
     }
-  }, [authChecked, isSignedIn]);
+  }, [authChecked, isSignedIn, hasFetched]);
 
-  const fetchApiKeys = async () => {
+  const fetchApiKeys = async (forceRefresh = false) => {
+    // Check cache (5 minutes TTL)
+    const CACHE_TTL = 5 * 60 * 1000;
+    const now = Date.now();
+    
+    if (!forceRefresh && cacheRef.current.data && cacheRef.current.timestamp) {
+      if (now - cacheRef.current.timestamp < CACHE_TTL) {
+        setApiKeys(cacheRef.current.data);
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
-    const retries = 3;
     
-    for (let i = 0; i < retries; i++) {
-      try {
-        // Exponential backoff: 500ms, 1500ms, 3500ms
-        const delay = i === 0 ? 500 : 500 * Math.pow(2, i);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        
-        const token = await getToken();
-        if (!token) {
-          if (i < retries - 1) {
-            continue;
-          }
-          setError("Authentication required - please sign in again");
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch("https://luco-backend.onrender.com/api/v1/api_key/list", {
-          method: "GET",
-          headers: {
-            "Accept": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-        
-        if (!response.ok) {
-          const errorMsg = `Failed to fetch API keys: ${response.status} ${response.statusText}`;
-          throw new Error(errorMsg);
-        }
-        
-        const data: ApiKeyResponse[] = await response.json();
-        setApiKeys(
-          data.map((key) => ({
-            id: key.id.toString(),
-            key: key.key,
-            full_key: key.full_key,
-            is_active: key.is_active,
-            name: key.name || `Prod API Key ${key.id}`,
-            created: key.created || "Unknown",
-            lastUsed: key.lastUsed || "Never",
-            status: key.is_active ? "active" : "inactive",
-          }))
-        );
-        setError(null);
+    try {
+      const token = await getToken();
+      if (!token) {
+        setError("Authentication required - please sign in again");
         setLoading(false);
         return;
-      } catch (err) {
-        if (i === retries - 1) {
-          const errorMessage = err instanceof Error ? err.message : "Error fetching API keys";
-          setError(errorMessage);
-          setLoading(false);
-        }
       }
+
+      const response = await fetch("https://luco-backend.onrender.com/api/v1/api_key/list", {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorMsg = `Failed to fetch API keys: ${response.status} ${response.statusText}`;
+        throw new Error(errorMsg);
+      }
+      
+      const data: ApiKeyResponse[] = await response.json();
+      const mappedData = data.map((key) => ({
+        id: key.id.toString(),
+        key: key.key,
+        full_key: key.full_key,
+        is_active: key.is_active,
+        name: key.name || `Prod API Key ${key.id}`,
+        created: key.created || "Unknown",
+        lastUsed: key.lastUsed || "Never",
+        status: key.is_active ? "active" : "inactive",
+      }));
+      
+      setApiKeys(mappedData);
+      cacheRef.current = { data: mappedData, timestamp: now };
+      setError(null);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Error fetching API keys";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
   const generateApiKey = async () => {
     setLoading(true);
     setError(null);
-    const retries = 3;
     
-    for (let i = 0; i < retries; i++) {
-      try {
-        // Exponential backoff: 500ms, 1500ms, 3500ms
-        const delay = i === 0 ? 500 : 500 * Math.pow(2, i);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        
-        const token = await getToken();
-        if (!token) {
-          if (i < retries - 1) {
-            continue;
-          }
-          setError("Authentication required - please sign in again");
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch("https://luco-backend.onrender.com/api/v1/api_key/generate", {
-          method: "POST",
-          headers: {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
-          body: JSON.stringify({}),
-        });
-        
-        if (!response.ok) {
-          const errorMsg = `Failed to generate API key: ${response.status} ${response.statusText}`;
-          throw new Error(errorMsg);
-        }
-        
-        await fetchApiKeys();
+    try {
+      const token = await getToken();
+      if (!token) {
+        setError("Authentication required - please sign in again");
         setLoading(false);
         return;
-      } catch (err) {
-        if (i === retries - 1) {
-          const errorMessage = err instanceof Error ? err.message : "Error generating API key";
-          setError(errorMessage);
-          setLoading(false);
-        }
       }
+
+      const response = await fetch("https://luco-backend.onrender.com/api/v1/api_key/generate", {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      });
+      
+      if (!response.ok) {
+        const errorMsg = `Failed to generate API key: ${response.status} ${response.statusText}`;
+        throw new Error(errorMsg);
+      }
+      
+      await fetchApiKeys(true);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Error generating API key";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -172,47 +164,34 @@ export default function DeveloperPage() {
     if (!confirm("Are you sure you want to delete this API key? This action cannot be undone.")) return;
     setLoading(true);
     setError(null);
-    const retries = 3;
     
-    for (let i = 0; i < retries; i++) {
-      try {
-        // Exponential backoff: 500ms, 1500ms, 3500ms
-        const delay = i === 0 ? 500 : 500 * Math.pow(2, i);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        
-        const token = await getToken();
-        if (!token) {
-          if (i < retries - 1) {
-            continue;
-          }
-          setError("Authentication required - please sign in again");
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(`https://luco-backend.onrender.com/api/v1/api_key/delete/${id}`, {
-          method: "DELETE",
-          headers: {
-            "Accept": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-        
-        if (!response.ok) {
-          const errorMsg = `Failed to delete API key: ${response.status} ${response.statusText}`;
-          throw new Error(errorMsg);
-        }
-        
-        await fetchApiKeys();
+    try {
+      const token = await getToken();
+      if (!token) {
+        setError("Authentication required - please sign in again");
         setLoading(false);
         return;
-      } catch (err) {
-        if (i === retries - 1) {
-          const errorMessage = err instanceof Error ? err.message : "Error deleting API key";
-          setError(errorMessage);
-          setLoading(false);
-        }
       }
+
+      const response = await fetch(`https://luco-backend.onrender.com/api/v1/api_key/delete/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorMsg = `Failed to delete API key: ${response.status} ${response.statusText}`;
+        throw new Error(errorMsg);
+      }
+      
+      await fetchApiKeys(true);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Error deleting API key";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
