@@ -59,13 +59,17 @@ export function WalletProvider({
   // Fetch wallet data
   const fetchWallet = React.useCallback(async () => {
     try {
-      const token = await getToken();
-      if (!token) throw new Error("No authentication token available");
+      // Get token with default template - this matches what your backend expects
+      const token = await getToken({ template: "default" });
+      if (!token) {
+        console.warn("No authentication token available for wallet");
+        return;
+      }
 
       const response = await fetch(`${API_BASE_URL}/account/wallet`, {
         headers: {
           accept: "application/json",
-          Authorization: `Bearer ${token}`, // Add JWT token
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -85,7 +89,8 @@ export function WalletProvider({
   // Fetch notifications (using messages as notifications)
   const fetchNotifications = React.useCallback(async () => {
     try {
-      const token = await getToken();
+      // Get token with default template - this matches what your backend expects
+      const token = await getToken({ template: "default" });
       if (!token) {
         console.warn("No authentication token available for notifications");
         return; // Skip fetching if no token

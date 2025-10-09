@@ -248,8 +248,14 @@ export default function Home() {
     for (let i = 0; i < retries; i++) {
       try {
         setIsLoading(true);
-        const token = await getToken();
-        if (!token) throw new Error("No authentication token available");
+        // Get token with default template - this matches what your backend expects
+        const token = await getToken({ template: "default" });
+        if (!token) {
+          console.error("No authentication token available");
+          throw new Error("No authentication token available");
+        }
+
+        console.log("Token obtained successfully, making API calls...");
 
         const [messagesData, summaryData, spendingData] = await Promise.all([
           dashboardAPI.getMessages(token, { limit: 100 }),
