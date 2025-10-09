@@ -1,7 +1,8 @@
 "use client";
 
-import * as React from "react";
+import React, { createContext, useContext, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
+import { useAppStore } from "@/stores/use-app-store";
 
 // Types
 interface WalletData {
@@ -51,10 +52,16 @@ export function WalletProvider({
   refreshInterval = 30000, // 30 seconds default
 }: WalletProviderProps) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
-  const [walletData, setWalletData] = React.useState<WalletData | null>(null);
+  const { walletCache, setWalletInStore, walletCacheValidUntil } = useAppStore();
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+
+  // Function to check if cache is valid
+  const isCacheValid = React.useCallback(() => {
+    if (!walletCacheValidUntil) return false;
+    return walletCacheValidUntil > Date.now();
+  }, [walletCacheValidUntil]);
 
   // Fetch wallet data
   const fetchWallet = React.useCallback(async () => {
@@ -64,10 +71,17 @@ export function WalletProvider({
       return;
     }
 
+    // Check if cache is valid and data exists
+    if (walletCache && isCacheValid()) {
+      console.log("[Wallet] Using cached data");
+      // No need to setWalletData here, as it's already in the store
+      return;
+    }
+
     try {
       // Wait a bit for session to be ready
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       // Get token - Clerk will use the default JWT
       const token = await getToken();
       if (!token) {
@@ -99,13 +113,16 @@ export function WalletProvider({
       }
 
       const data = await response.json();
-      setWalletData(data);
+      console.log("[Wallet] Wallet data received:", data);
+      setWalletInStore(data); // Use Zustand store to set data
       setError(null);
-    } catch (err) {
-      console.error("Error fetching wallet:", err);
-      // Don't set error state for network failures to avoid disrupting the app
+    } catch (error) {
+      console.error("[Wallet] Error fetching wallet:", error);
+      setError(error instanceof Error ? error.message : "Failed to fetch wallet data");
+    } finally {
+      setLoading(false);
     }
-  }, [getToken, isLoaded, isSignedIn]);
+  }, [getToken, isLoaded, isSignedIn, walletCache, isCacheValid, setWalletInStore]); // Added dependencies
 
   // Fetch notifications (using messages as notifications)
   const fetchNotifications = React.useCallback(async () => {
@@ -118,7 +135,7 @@ export function WalletProvider({
     try {
       // Wait a bit for session to be ready
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       // Get token - Clerk will use the default JWT
       const token = await getToken();
       if (!token) {
@@ -224,12 +241,15 @@ export function WalletProvider({
   // Set up polling
   React.useEffect(() => {
     const intervalId = setInterval(() => {
-      fetchWallet();
+      // Only fetch wallet if cache is invalid or data is missing
+      if (!isCacheValid() || !walletCache) {
+        fetchWallet();
+      }
       fetchNotifications();
     }, refreshInterval);
 
     return () => clearInterval(intervalId);
-  }, [fetchWallet, fetchNotifications, refreshInterval]);
+  }, [fetchWallet, fetchNotifications, refreshInterval, walletCache, isCacheValid]); // Added dependencies
 
   // Mark all as read
   const markAllAsRead = React.useCallback(() => {
@@ -248,6 +268,9 @@ export function WalletProvider({
     () => notifications.filter((n) => !n.read).length,
     [notifications]
   );
+
+  // Use wallet data from Zustand store, or null if not loaded/cached
+  const walletData = useAppStore((state) => state.walletCache);
 
   const value: WalletContextType = {
     walletData,

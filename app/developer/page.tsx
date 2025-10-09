@@ -10,6 +10,7 @@ import { Plus, Copy, Eye, EyeOff, Trash2, Key, Calendar, Activity, AlertCircle, 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { useAppStore } from "@/stores/use-app-store";
 
 interface ApiKeyResponse {
   created: string;
@@ -35,17 +36,13 @@ interface ApiKey {
 export default function DeveloperPage() {
   const { isLoaded, isSignedIn, getToken } = useAuth()
   const router = useRouter()
-  const [apiKeys, setApiKeys] = React.useState<ApiKey[]>([]);
+  const { apiKeys, apiKeysCache, setApiKeys, isCacheValid } = useAppStore()
   const [visibleKeys, setVisibleKeys] = React.useState<Set<string>>(new Set());
   const [copiedKey, setCopiedKey] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
   const [authChecked, setAuthChecked] = React.useState(false);
   const [hasFetched, setHasFetched] = React.useState(false);
-  const cacheRef = React.useRef<{ data: ApiKey[] | null; timestamp: number | null }>({ 
-    data: null, 
-    timestamp: null 
-  });
 
   React.useEffect(() => {
     if (!isLoaded) return
@@ -66,15 +63,9 @@ export default function DeveloperPage() {
   }, [authChecked, isSignedIn, hasFetched]);
 
   const fetchApiKeys = async (forceRefresh = false) => {
-    // Check cache (5 minutes TTL)
-    const CACHE_TTL = 5 * 60 * 1000;
-    const now = Date.now();
-    
-    if (!forceRefresh && cacheRef.current.data && cacheRef.current.timestamp) {
-      if (now - cacheRef.current.timestamp < CACHE_TTL) {
-        setApiKeys(cacheRef.current.data);
-        return;
-      }
+    // Check Zustand cache first
+    if (!forceRefresh && isCacheValid(apiKeysCache)) {
+      return;
     }
 
     setLoading(true);
@@ -114,7 +105,6 @@ export default function DeveloperPage() {
       }));
       
       setApiKeys(mappedData);
-      cacheRef.current = { data: mappedData, timestamp: now };
       setError(null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error fetching API keys";
