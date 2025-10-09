@@ -147,12 +147,13 @@ const scheduleAPI = {
     return response.json()
   },
 
-  updateSchedule: async (id: number, data: UpdateScheduleRequest): Promise<ScheduledMessage> => {
+  updateSchedule: async (id: number, data: UpdateScheduleRequest, token: string): Promise<ScheduledMessage> => {
     const response = await fetch(`${API_BASE_URL}/schedule/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
         accept: "application/json",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(data),
     })
@@ -163,10 +164,13 @@ const scheduleAPI = {
     return response.json()
   },
 
-  deleteSchedule: async (id: number): Promise<void> => {
+  deleteSchedule: async (id: number, token: string): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/schedule/${id}`, {
       method: "DELETE",
-      headers: { accept: "application/json" },
+      headers: { 
+        accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
     })
     if (!response.ok) {
       const error = await response.json()
@@ -262,19 +266,29 @@ export default function ScheduleMessagesPage() {
   const fetchGroups = React.useCallback(async () => {
     if (!authChecked) return
     
-    try {
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      const token = await getToken()
-      if (!token) {
-        console.warn("No authentication token available for groups")
-        return
-      }
+    const retries = 3
+    for (let i = 0; i < retries; i++) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const token = await getToken()
+        if (!token) {
+          console.error("No authentication token available for groups, attempt:", i + 1)
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            continue
+          }
+          return
+        }
 
-      const data = await groupsAPI.getGroups(token)
-      setGroups(data)
-    } catch (error) {
-      showToast("Error", error instanceof Error ? error.message : "Failed to fetch groups", "error")
+        const data = await groupsAPI.getGroups(token)
+        setGroups(data)
+        break
+      } catch (error) {
+        if (i === retries - 1) {
+          showToast("Error", error instanceof Error ? error.message : "Failed to fetch groups", "error")
+        }
+      }
     }
   }, [authChecked, getToken, showToast])
 
@@ -326,49 +340,67 @@ export default function ScheduleMessagesPage() {
     }
 
     setLoading(true)
-    try {
-      const scheduledTime = new Date(`${formData.date}T${formData.time}`).toISOString()
+    const retries = 3
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const token = await getToken()
+        if (!token) {
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            continue
+          }
+          showToast("Error", "Authentication required", "error")
+          return
+        }
 
-      if (formData.recipientType === "single") {
-        if (!formData.recipient) {
-          throw new Error("Recipient phone number is required")
+        const scheduledTime = new Date(`${formData.date}T${formData.time}`).toISOString()
+
+        if (formData.recipientType === "single") {
+          if (!formData.recipient) {
+            throw new Error("Recipient phone number is required")
+          }
+          await scheduleAPI.createSchedule({
+            message: formData.message,
+            recipient: formData.recipient,
+            scheduled_time: scheduledTime,
+            sender_id: formData.senderId,
+          }, token)
+          showToast("Success", "Schedule created successfully", "success")
+        } else {
+          if (formData.selectedGroups.length === 0) {
+            throw new Error("At least one group must be selected")
+          }
+          await scheduleAPI.createBulkSchedule({
+            message: formData.message,
+            group_ids: formData.selectedGroups,
+            scheduled_time: scheduledTime,
+            sender_id: formData.senderId,
+          }, token)
+          showToast("Success", "Bulk schedule created successfully", "success")
         }
-        await scheduleAPI.createSchedule({
-          message: formData.message,
-          recipient: formData.recipient,
-          scheduled_time: scheduledTime,
-          sender_id: formData.senderId,
+
+        setIsCreateDialogOpen(false)
+        setFormData({
+          recipient: "",
+          recipientType: "single",
+          selectedGroups: [],
+          message: "",
+          senderId: "ATUpdates",
+          date: "",
+          time: "",
         })
-        showToast("Success", "Group created successfully", "success")
-      } else {
-        if (formData.selectedGroups.length === 0) {
-          throw new Error("At least one group must be selected")
+        fetchSchedules()
+        break
+      } catch (error) {
+        if (i === retries - 1) {
+          showToast("Error", error instanceof Error ? error.message : "Failed to create schedule", "error")
         }
-        const response = await scheduleAPI.createBulkSchedule({
-          message: formData.message,
-          group_ids: formData.selectedGroups,
-          scheduled_time: scheduledTime,
-          sender_id: formData.senderId,
-        })
-        showToast("Success", "Group created successfully", "success")
       }
-
-      setIsCreateDialogOpen(false)
-      setFormData({
-        recipient: "",
-        recipientType: "single",
-        selectedGroups: [],
-        message: "",
-        senderId: "ATUpdates",
-        date: "",
-        time: "",
-      })
-      fetchSchedules()
-    } catch (error) {
-     showToast("Error", error instanceof Error ? error.message : "Failed to fetch schedules", "error")
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
   }
 
   // Handle update schedule
@@ -376,40 +408,76 @@ export default function ScheduleMessagesPage() {
     if (!editingMessage) return
 
     setLoading(true)
-    try {
-      const scheduledTime = formData.date && formData.time 
-        ? new Date(`${formData.date}T${formData.time}`).toISOString()
-        : undefined
+    const retries = 3
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const token = await getToken()
+        if (!token) {
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            continue
+          }
+          showToast("Error", "Authentication required", "error")
+          return
+        }
 
-      await scheduleAPI.updateSchedule(editingMessage.id, {
-        message: formData.message || undefined,
-        scheduled_time: scheduledTime,
-        sender_id: formData.senderId || undefined,
-      })
+        const scheduledTime = formData.date && formData.time 
+          ? new Date(`${formData.date}T${formData.time}`).toISOString()
+          : undefined
 
-      showToast("Success", "Group created successfully", "success")
-      setIsEditDialogOpen(false)
-      setEditingMessage(null)
-      fetchSchedules()
-    } catch (error) {
-      showToast("Error", error instanceof Error ? error.message : "Failed to fetch schedules", "error")
-    } finally {
-      setLoading(false)
+        await scheduleAPI.updateSchedule(editingMessage.id, {
+          message: formData.message || undefined,
+          scheduled_time: scheduledTime,
+          sender_id: formData.senderId || undefined,
+        }, token)
+
+        showToast("Success", "Schedule updated successfully", "success")
+        setIsEditDialogOpen(false)
+        setEditingMessage(null)
+        fetchSchedules()
+        break
+      } catch (error) {
+        if (i === retries - 1) {
+          showToast("Error", error instanceof Error ? error.message : "Failed to update schedule", "error")
+        }
+      }
     }
+    setLoading(false)
   }
 
   // Handle delete schedule
   const handleDeleteSchedule = async (id: number) => {
     setActionLoading(id)
-    try {
-      await scheduleAPI.deleteSchedule(id)
-      showToast("Success", "Group created successfully", "success")
-      fetchSchedules()
-    } catch (error) {
-      showToast("Error", error instanceof Error ? error.message : "Failed to fetch schedules", "error")
-    } finally {
-      setActionLoading(null)
+    const retries = 3
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const token = await getToken()
+        if (!token) {
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            continue
+          }
+          showToast("Error", "Authentication required", "error")
+          return
+        }
+
+        await scheduleAPI.deleteSchedule(id, token)
+        showToast("Success", "Schedule deleted successfully", "success")
+        fetchSchedules()
+        break
+      } catch (error) {
+        if (i === retries - 1) {
+          showToast("Error", error instanceof Error ? error.message : "Failed to delete schedule", "error")
+        }
+      }
     }
+    setActionLoading(null)
   }
 
   // Handle send now

@@ -147,101 +147,148 @@ export default function ContactCollectionPage() {
   const { getToken } = useAuth()
 
   // Fetch groups with contact count
-  const fetchGroups = async (): Promise<void> => {
-    try {
-      setLoading(true)
-      const token = await getToken()
-      if (!token) {
-        showToast("Error", "Authentication required", "error")
-        return
-      }
-
-      const response = await fetch(`${API_BASE_URL}/groups/?skip=0&limit=100`, {
-        headers: { 
-          'accept': 'application/json',
-          'Authorization': `Bearer ${token}`
+  const fetchGroups = async (retries = 3): Promise<void> => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        setLoading(true)
+        
+        // Wait for Clerk session to be ready
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const token = await getToken()
+        if (!token) {
+          console.error("No authentication token available, attempt:", i + 1)
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            continue
+          }
+          showToast("Error", "Authentication required", "error")
+          return
         }
-      })
-      if (response.ok) {
-        const data: Group[] = await response.json()
-        // Fetch detailed info for each group to get contact count
-        const groupsWithDetails = await Promise.all(
-          data.map(async (group: Group): Promise<Group> => {
-            try {
-              const detailResponse = await fetch(`${API_BASE_URL}/groups/${group.id}`)
-              if (detailResponse.ok) {
-                const details: Group & { contact_count: number } = await detailResponse.json()
-                return { ...group, contact_count: details.contact_count || 0 }
+
+        const response = await fetch(`${API_BASE_URL}/groups/?skip=0&limit=100`, {
+          headers: { 
+            'accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) {
+          const data: Group[] = await response.json()
+          // Fetch detailed info for each group to get contact count
+          const groupsWithDetails = await Promise.all(
+            data.map(async (group: Group): Promise<Group> => {
+              try {
+                const detailResponse = await fetch(`${API_BASE_URL}/groups/${group.id}`, {
+                  headers: { 
+                    'accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  }
+                })
+                if (detailResponse.ok) {
+                  const details: Group & { contact_count: number } = await detailResponse.json()
+                  return { ...group, contact_count: details.contact_count || 0 }
+                }
+                return { ...group, contact_count: 0 }
+              } catch {
+                return { ...group, contact_count: 0 }
               }
-              return { ...group, contact_count: 0 }
-            } catch {
-              return { ...group, contact_count: 0 }
-            }
-          })
-        )
-        setGroups(groupsWithDetails)
+            })
+          )
+          setGroups(groupsWithDetails)
+          break
+        }
+      } catch (error) {
+        if (i === retries - 1) {
+          console.error('Error fetching groups after retries:', error)
+          showToast("Error", "Failed to fetch groups", "error")
+        }
+      } finally {
+        setLoading(false)
       }
-    } catch (error) {
-      console.error('Error fetching groups:', error)
-      showToast("Error", "Failed to fetch groups", "error")
-    } finally {
-      setLoading(false)
     }
   }
 
   // Fetch contacts
-  const fetchContacts = async (): Promise<void> => {
-    try {
-      setLoading(true)
-      const token = await getToken()
-      if (!token) {
-        showToast("Error", "Authentication required", "error")
-        return
-      }
-
-      const response = await fetch(`${API_BASE_URL}/contacts/?skip=0&limit=100&is_active=true`, {
-        headers: { 
-          'accept': 'application/json',
-          'Authorization': `Bearer ${token}`
+  const fetchContacts = async (retries = 3): Promise<void> => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        setLoading(true)
+        
+        // Wait for Clerk session to be ready
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const token = await getToken()
+        if (!token) {
+          console.error("No authentication token available, attempt:", i + 1)
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            continue
+          }
+          showToast("Error", "Authentication required", "error")
+          return
         }
-      })
-      if (response.ok) {
-        const data: Contact[] = await response.json()
-        setContacts(data || [])
+
+        const response = await fetch(`${API_BASE_URL}/contacts/?skip=0&limit=100&is_active=true`, {
+          headers: { 
+            'accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) {
+          const data: Contact[] = await response.json()
+          setContacts(data || [])
+          break
+        }
+      } catch (error) {
+        if (i === retries - 1) {
+          console.error('Error fetching contacts after retries:', error)
+          showToast("Error", "Failed to fetch contacts", "error")
+        }
+      } finally {
+        setLoading(false)
       }
-    } catch (error) {
-      console.error('Error fetching contacts:', error)
-      showToast("Error", "Failed to fetch contacts", "error")
-    } finally {
-      setLoading(false)
     }
   }
 
   // Fetch contacts for a specific group
-  const fetchGroupContacts = async (groupId: number): Promise<void> => {
-    try {
-      setLoadingGroupContacts(true)
-      const token = await getToken()
-      if (!token) {
-        showToast("Error", "Authentication required", "error")
-        return
-      }
-
-      const response = await fetch(`${API_BASE_URL}/groups/${groupId}/contacts?skip=0&limit=100`, {
-        headers: { 
-          'accept': 'application/json',
-          'Authorization': `Bearer ${token}`
+  const fetchGroupContacts = async (groupId: number, retries = 3): Promise<void> => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        setLoadingGroupContacts(true)
+        
+        // Wait for Clerk session to be ready
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const token = await getToken()
+        if (!token) {
+          console.error("No authentication token available, attempt:", i + 1)
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            continue
+          }
+          showToast("Error", "Authentication required", "error")
+          return
         }
-      })
-      if (response.ok) {
-        const data: Contact[] = await response.json()
-        setGroupContacts(data || [])
+
+        const response = await fetch(`${API_BASE_URL}/groups/${groupId}/contacts?skip=0&limit=100`, {
+          headers: { 
+            'accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) {
+          const data: Contact[] = await response.json()
+          setGroupContacts(data || [])
+          break
+        }
+      } catch (error) {
+        if (i === retries - 1) {
+          console.error('Error fetching group contacts after retries:', error)
+          showToast("Error", "Failed to fetch group contacts", "error")
+        }
+      } finally {
+        setLoadingGroupContacts(false)
       }
-    } catch (error) {
-      console.error('Error fetching group contacts:', error)
-      showToast("Error", "Failed to fetch group contacts", "error")
-    } finally {
-      setLoadingGroupContacts(false)
     }
   }
 
