@@ -342,8 +342,7 @@ export default function ContactCollectionPage() {
 
       if (response.ok) {
         showToast("Success", "Group created successfully", "success")
-        setIsCreateGroupOpen(false)
-        setCreateGroupForm({ name: "", description: "" })
+        handleCreateDialogChange(false)
         fetchGroups()
       } else {
         const error: { detail?: string } = await response.json()
@@ -388,7 +387,7 @@ export default function ContactCollectionPage() {
 
       if (response.ok) {
         showToast("Success", "Group updated successfully", "success")
-        closeEditGroupDialog()
+        handleEditDialogChange(false)
         fetchGroups()
       } else {
         throw new Error("Failed to update group")
@@ -756,20 +755,36 @@ export default function ContactCollectionPage() {
   // Close edit group dialog
   const closeEditGroupDialog = (): void => {
     setIsEditGroupOpen(false)
-    setEditingGroup(null)
-    setEditGroupForm({ name: "", description: "" })
+    // Use setTimeout to ensure state updates complete before resetting
+    setTimeout(() => {
+      setEditingGroup(null)
+      setEditGroupForm({ name: "", description: "" })
+    }, 100)
   }
 
   // Reset create group form
   const resetCreateGroupForm = (): void => {
-    setCreateGroupForm({ name: "", description: "" })
+    setTimeout(() => {
+      setCreateGroupForm({ name: "", description: "" })
+    }, 100)
   }
 
   // Handle dialog state changes for create group
   const handleCreateDialogChange = (open: boolean): void => {
-    setIsCreateGroupOpen(open)
     if (!open) {
+      setIsCreateGroupOpen(false)
       resetCreateGroupForm()
+    } else {
+      setIsCreateGroupOpen(true)
+    }
+  }
+
+  // Handle dialog state changes for edit group
+  const handleEditDialogChange = (open: boolean): void => {
+    if (!open) {
+      closeEditGroupDialog()
+    } else {
+      setIsEditGroupOpen(true)
     }
   }
 
@@ -1293,40 +1308,39 @@ export default function ContactCollectionPage() {
       </Tabs>
 
       {/* Edit Group Dialog */}
-      <Dialog open={isEditGroupOpen} onOpenChange={(open) => {
-        if (!open) closeEditGroupDialog()
-        else setIsEditGroupOpen(true)
-      }}>
+      <Dialog open={isEditGroupOpen} onOpenChange={handleEditDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Group</DialogTitle>
             <DialogDescription>Update group information</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="editGroupName">Group Name *</Label>
-              <Input 
-                id="editGroupName" 
-                placeholder="e.g., VIP Customers" 
-                value={editGroupForm.name}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setEditGroupForm({...editGroupForm, name: e.target.value})}
-              />
-            </div>
+          {editingGroup && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="editGroupName">Group Name *</Label>
+                <Input 
+                  id="editGroupName" 
+                  placeholder="e.g., VIP Customers" 
+                  value={editGroupForm.name}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEditGroupForm({...editGroupForm, name: e.target.value})}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="editGroupDescription">Description</Label>
-              <Textarea 
-                id="editGroupDescription" 
-                placeholder="Brief description..." 
-                rows={3}
-                value={editGroupForm.description}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEditGroupForm({...editGroupForm, description: e.target.value})}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="editGroupDescription">Description</Label>
+                <Textarea 
+                  id="editGroupDescription" 
+                  placeholder="Brief description..." 
+                  rows={3}
+                  value={editGroupForm.description}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEditGroupForm({...editGroupForm, description: e.target.value})}
+                />
+              </div>
             </div>
-          </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={closeEditGroupDialog}>Cancel</Button>
-            <Button onClick={handleEditGroup} disabled={loading}>
+            <Button variant="outline" onClick={() => handleEditDialogChange(false)}>Cancel</Button>
+            <Button onClick={handleEditGroup} disabled={loading || !editingGroup}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Group
             </Button>
