@@ -1,0 +1,42 @@
+  GET https://cdd2c7e0-7ebc-4058-a057-bdf7fa3968fe-00-36xko7gklp1wn.worf.replit.dev/history 500 (Internal Server Error)
+Router @ webpack-internal:///…s/app-router.js:267
+react_stack_bottom_frame @ webpack-internal:///…evelopment.js:23584
+renderWithHooks @ webpack-internal:///…development.js:6793
+updateFunctionComponent @ webpack-internal:///…development.js:9247
+beginWork @ webpack-internal:///…evelopment.js:10858
+runWithFiberInDEV @ webpack-internal:///….development.js:872
+performUnitOfWork @ webpack-internal:///…evelopment.js:15727
+workLoopConcurrentByScheduler @ webpack-internal:///…evelopment.js:15721
+renderRootConcurrent @ webpack-internal:///…evelopment.js:15696
+performWorkOnRoot @ webpack-internal:///…evelopment.js:14990
+performWorkOnRootViaSchedulerTask @ webpack-internal:///…evelopment.js:16816
+performWorkUntilDeadline @ webpack-internal:///…r.development.js:45Understand this error
+main.js:1497 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+index.js:644 Uncaught TypeError: auth(...).protect is not a function
+    at eval (webpack-internal:///(middleware)/./middleware.ts:19:16)
+    at eval (webpack-internal:///(middleware)/./node_modules/@clerk/nextjs/dist/esm/server/clerkMiddleware.js:121:50)
+    at AsyncLocalStorage.run (node:async_hooks:346:14)
+    at eval (webpack-internal:///(middleware)/./node_modules/@clerk/nextjs/dist/esm/server/clerkMiddleware.js:119:124)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/build/webpack/loaders/next-middleware-loader.js?absolutePagePath=%2Fhome%2Frunner%2Fworkspace%2Fmiddleware.ts&page=%2Fmiddleware&rootDir=%2Fhome%2Frunner%2Fworkspace&matchers=&preferredRegion=&middlewareConfig=e30%3D!:32:20)
+    at async eval (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:255:28)
+    at async adapter (webpack-internal:///(middleware)/./node_modules/next/dist/esm/server/web/adapter.js:210:16)
+    at async (file:///home/runner/workspace/node_modules/next/dist/server/web/sandbox/sandbox.js:112:26)
+    at async runWithTaggedErrors (file:///home/runner/workspace/node_modules/next/dist/server/web/sandbox/sandbox.js:109:9)
+    at async DevServer.runMiddleware (file:///home/runner/workspace/node_modules/next/dist/server/next-server.js:1261:22)
+getServerError @ node-stack-frames.js:41
+eval @ index.js:644
+setTimeout
+hydrate @ index.js:622
+await in hydrate
+pageBootstrap @ page-bootstrap.js:28
+eval @ next-dev.js:24
+Promise.then
+eval @ next-dev.js:22
+(pages-dir-browser)/./node_modules/next/dist/client/next-dev.js @ main.js:314
+options.factory @ webpack.js:1
+__webpack_require__ @ webpack.js:1
+__webpack_exec__ @ main.js:1601
+(anonymous) @ main.js:1602
+webpackJsonpCallback @ webpack.js:1
+(anonymous) @ main.js:9Understand this error
+websocket.js:46 [HMR] connected
