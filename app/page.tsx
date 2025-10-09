@@ -265,7 +265,24 @@ export default function Home() {
         }
 
         console.log("Token obtained successfully:", token ? "Token exists" : "No token");
-        console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "N/A");
+        console.log("Token preview:", token ? `${token.substring(0, 30)}...${token.substring(token.length - 10)}` : "N/A");
+        
+        // Decode JWT to see what's inside (for debugging)
+        try {
+          const tokenParts = token?.split('.') || [];
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            console.log("Token payload:", {
+              sid: payload.sid,
+              sub: payload.sub,
+              iss: payload.iss,
+              exp: payload.exp,
+              iat: payload.iat
+            });
+          }
+        } catch (e) {
+          console.error("Failed to decode token:", e);
+        }
 
         const [messagesData, summaryData, spendingData] = await Promise.all([
           dashboardAPI.getMessages(token, { limit: 100 }),

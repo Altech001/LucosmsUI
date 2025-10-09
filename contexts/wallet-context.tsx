@@ -69,6 +69,8 @@ export function WalletProvider({
         return;
       }
 
+      console.log("[Wallet] Token obtained for wallet fetch");
+
       const response = await fetch(`${API_BASE_URL}/account/wallet`, {
         headers: {
           accept: "application/json",
@@ -77,6 +79,8 @@ export function WalletProvider({
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[Wallet] Fetch failed:", response.status, errorText);
         throw new Error(`Failed to fetch wallet data: ${response.statusText}`);
       }
 
@@ -113,6 +117,8 @@ export function WalletProvider({
       );
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[Notifications] Fetch failed:", response.status, errorText);
         throw new Error(`Failed to fetch notifications: ${response.statusText}`);
       }
 
