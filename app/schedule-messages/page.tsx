@@ -344,6 +344,9 @@ export default function ScheduleMessagesPage() {
 
   // Handle create schedule
   const handleCreateSchedule = async () => {
+    // Prevent multiple submissions
+    if (loading) return
+    
     if (!formData.message || !formData.date || !formData.time) {
       showToast("Validation Error", "Please fill in all required fields", "error")
       return
@@ -355,6 +358,7 @@ export default function ScheduleMessagesPage() {
       const token = await getToken()
       if (!token) {
         showToast("Error", "Authentication required", "error")
+        setLoading(false)
         return
       }
 
@@ -384,6 +388,7 @@ export default function ScheduleMessagesPage() {
         showToast("Success", "Bulk schedule created successfully", "success")
       }
 
+      // Close dialog and reset form
       setIsCreateDialogOpen(false)
       setFormData({
         recipient: "",
@@ -394,7 +399,11 @@ export default function ScheduleMessagesPage() {
         date: "",
         time: "",
       })
-      fetchSchedules()
+      
+      // Refresh schedules after a short delay to ensure backend has processed
+      setTimeout(() => {
+        fetchSchedules()
+      }, 500)
     } catch (error) {
       showToast("Error", error instanceof Error ? error.message : "Failed to create schedule", "error")
     } finally {
@@ -481,13 +490,17 @@ export default function ScheduleMessagesPage() {
 
   // Handle send now
   const handleSendNow = async () => {
+    if (loading) return
+    
     setLoading(true)
     try {
       const response = await scheduleAPI.processDueMessages()
-      showToast("Success", "Group created successfully", "success")
-      fetchSchedules()
+      showToast("Success", response.message || "Due messages processed successfully", "success")
+      setTimeout(() => {
+        fetchSchedules()
+      }, 500)
     } catch (error) {
-      showToast("Error", error instanceof Error ? error.message : "Failed to fetch schedules", "error")
+      showToast("Error", error instanceof Error ? error.message : "Failed to process due messages", "error")
     } finally {
       setLoading(false)
     }
@@ -736,7 +749,12 @@ export default function ScheduleMessagesPage() {
                   </div>
 
                   <div className="flex gap-2 pt-4">
-                    <Button className="flex-1" onClick={handleCreateSchedule} disabled={loading}>
+                    <Button 
+                      type="button"
+                      className="flex-1" 
+                      onClick={handleCreateSchedule} 
+                      disabled={loading}
+                    >
                       {loading ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
@@ -744,7 +762,12 @@ export default function ScheduleMessagesPage() {
                       )}
                       Schedule Message
                     </Button>
-                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      onClick={() => setIsCreateDialogOpen(false)}
+                      disabled={loading}
+                    >
                       Cancel
                     </Button>
                   </div>
