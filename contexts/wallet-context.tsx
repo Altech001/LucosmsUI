@@ -86,14 +86,17 @@ export function WalletProvider({
   const fetchNotifications = React.useCallback(async () => {
     try {
       const token = await getToken();
-      if (!token) throw new Error("No authentication token available");
+      if (!token) {
+        console.warn("No authentication token available for notifications");
+        return; // Skip fetching if no token
+      }
 
       const response = await fetch(
         `${API_BASE_URL}/account/reports/messages?skip=0&limit=10`,
         {
           headers: {
             accept: "application/json",
-            Authorization: `Bearer ${token}`, // Add JWT token
+            Authorization: `Bearer ${token}`,
           },
         }
       );
