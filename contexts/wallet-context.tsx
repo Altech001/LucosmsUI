@@ -52,16 +52,12 @@ export function WalletProvider({
   refreshInterval = 30000, // 30 seconds default
 }: WalletProviderProps) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
-  const { walletCache, setWalletInStore, walletCacheValidUntil } = useAppStore();
+  const setWalletData = useAppStore((state) => state.setWalletData);
+  const walletCache = useAppStore((state) => state.walletCache);
+  const isCacheValid = useAppStore((state) => state.isCacheValid);
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-
-  // Function to check if cache is valid
-  const isCacheValid = React.useCallback(() => {
-    if (!walletCacheValidUntil) return false;
-    return walletCacheValidUntil > Date.now();
-  }, [walletCacheValidUntil]);
 
   // Fetch wallet data
   const fetchWallet = React.useCallback(async () => {
@@ -72,7 +68,7 @@ export function WalletProvider({
     }
 
     // Check if cache is valid and data exists
-    if (walletCache && isCacheValid()) {
+    if (walletCache && isCacheValid(walletCache)) {
       console.log("[Wallet] Using cached data");
       // No need to setWalletData here, as it's already in the store
       return;
@@ -114,7 +110,7 @@ export function WalletProvider({
 
       const data = await response.json();
       console.log("[Wallet] Wallet data received:", data);
-      setWalletInStore(data); // Use Zustand store to set data
+      setWalletData(data); // Use Zustand store to set data
       setError(null);
     } catch (error) {
       console.error("[Wallet] Error fetching wallet:", error);
@@ -122,7 +118,7 @@ export function WalletProvider({
     } finally {
       setLoading(false);
     }
-  }, [getToken, isLoaded, isSignedIn, walletCache, isCacheValid, setWalletInStore]); // Added dependencies
+  }, [getToken, isLoaded, isSignedIn, walletCache, isCacheValid, setWalletData]); // Added dependencies
 
   // Fetch notifications (using messages as notifications)
   const fetchNotifications = React.useCallback(async () => {
@@ -242,7 +238,7 @@ export function WalletProvider({
   React.useEffect(() => {
     const intervalId = setInterval(() => {
       // Only fetch wallet if cache is invalid or data is missing
-      if (!isCacheValid() || !walletCache) {
+      if (!isCacheValid(walletCache) || !walletCache) {
         fetchWallet();
       }
       fetchNotifications();
@@ -270,7 +266,7 @@ export function WalletProvider({
   );
 
   // Use wallet data from Zustand store, or null if not loaded/cached
-  const walletData = useAppStore((state) => state.walletCache);
+  const walletData = walletCache?.data || null;
 
   const value: WalletContextType = {
     walletData,
