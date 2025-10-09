@@ -325,7 +325,44 @@ export default function TopUpPage() {
     return cleaned;
   };
 
-  // Verify phone number
+  // Auto-verify phone number when it's complete
+  React.useEffect(() => {
+    const autoVerifyPhone = async () => {
+      if (!phoneNumber || isPhoneVerified || isVerifying) return;
+
+      const formattedPhone = formatPhoneNumber(phoneNumber);
+      
+      // Only auto-verify when phone number is complete (12 digits)
+      if (formattedPhone.length !== 12) return;
+
+      setIsVerifying(true);
+      try {
+        const result = await paymentAPI.verifyPhone(`+${formattedPhone}`);
+        
+        if (result.success) {
+          setVerifiedName(result.identityname);
+          setIsPhoneVerified(true);
+          showToast("Success", result.message, "success");
+        } else {
+          showToast("Error", "Phone verification failed", "error");
+        }
+      } catch (error) {
+        showToast(
+          "Error",
+          error instanceof Error ? error.message : "Failed to verify phone number",
+          "error"
+        );
+      } finally {
+        setIsVerifying(false);
+      }
+    };
+
+    // Debounce the auto-verify to avoid too many API calls
+    const timeoutId = setTimeout(autoVerifyPhone, 500);
+    return () => clearTimeout(timeoutId);
+  }, [phoneNumber, isPhoneVerified, isVerifying, showToast]);
+
+  // Verify phone number (keep for manual verification if needed)
   const handleVerifyPhone = async () => {
     if (!phoneNumber) {
       showToast("Validation Error", "Please enter your phone number", "warning");
@@ -474,10 +511,10 @@ export default function TopUpPage() {
       return;
     }
 
-    if (amount < 1000) {
+    if (amount < 100) {
       showToast(
         "Validation Error",
-        "Minimum top-up amount is UGX 1,000",
+        "Minimum top-up amount is UGX 100",
         "warning"
       );
       return;
@@ -744,11 +781,11 @@ export default function TopUpPage() {
                       value={customAmount}
                       onChange={(e) => setCustomAmount(e.target.value)}
                       className="pl-12"
-                      min="1000"
+                      min="100"
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Minimum: UGX 1,000
+                    Minimum: UGX 100
                   </p>
                   <Button
                     className="w-full"
@@ -804,32 +841,22 @@ export default function TopUpPage() {
               {!isPhoneVerified && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Phone Number</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="tel"
-                        placeholder="0700000000"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        className="pl-10"
-                        disabled={isVerifying}
-                      />
-                    </div>
-                    <Button 
-                      onClick={handleVerifyPhone} 
-                      disabled={isVerifying || !phoneNumber}
-                      variant="outline"
-                    >
-                      {isVerifying ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        "Verify"
-                      )}
-                    </Button>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="tel"
+                      placeholder="0700000000"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      className="pl-10"
+                      disabled={isVerifying}
+                    />
+                    {isVerifying && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Enter your MTN or Airtel number
+                    Enter your MTN or Airtel number (will verify automatically)
                   </p>
                 </div>
               )}
