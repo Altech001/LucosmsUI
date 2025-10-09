@@ -1,14 +1,12 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import { useAuth, UserProfile, useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import { Breadcrumb } from "@/components/breadcrumb";
-import { PageLayout } from "@/components/page-layout";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import * as React from "react"
+import { Breadcrumb } from "@/components/breadcrumb"
+import { PageLayout } from "@/components/page-layout"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -17,13 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+} from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Calendar,
   CheckCircle2,
@@ -50,7 +48,7 @@ import {
   TrendingUp,
   Users,
   XCircle,
-} from "lucide-react";
+} from "lucide-react"
 import {
   Bar,
   BarChart,
@@ -65,143 +63,125 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from "recharts";
-import { useToast } from "@/contexts/toast-context";
+} from "recharts"
+import { useToast } from "@/contexts/toast-context"
 
 // Types
 interface Message {
-  id: number;
-  user_id: string;
-  recipient: string;
-  message: string;
-  status: string;
-  cost: number;
-  sender_id: string;
-  created_at: string;
+  id: number
+  user_id: string
+  recipient: string
+  message: string
+  status: string
+  cost: number
+  sender_id: string
+  created_at: string
 }
 
 interface Summary {
   wallet: {
-    current_balance: number;
-    total_topups: number;
-    total_spent: number;
-  };
+    current_balance: number
+    total_topups: number
+    total_spent: number
+  }
   messages: {
-    total_sent: number;
-    pending: number;
-    delivered: number;
-    failed: number;
-  };
+    total_sent: number
+    pending: number
+    delivered: number
+    failed: number
+  }
   account: {
-    username: string;
-    email: string;
-    created_at: string;
-  };
+    username: string
+    email: string
+    created_at: string
+  }
 }
 
 interface SpendingReport {
   period: {
-    start_date: string | null;
-    end_date: string | null;
-  };
+    start_date: string | null
+    end_date: string | null
+  }
   summary: {
-    total_messages: number;
-    total_spent: number;
-    average_cost_per_message: number;
-  };
-  status_breakdown: Record<string, number>;
+    total_messages: number
+    total_spent: number
+    average_cost_per_message: number
+  }
+  status_breakdown: Record<string, number>
 }
 
 type DashboardComponent = {
-  id: string;
-  title: string;
-  type: "stats" | "charts" | "activity" | "wallet";
-  order: number;
-};
+  id: string
+  title: string
+  type: "stats" | "charts" | "activity" | "wallet"
+  order: number
+}
 
 // API Configuration
-const API_BASE_URL = "https://luco-backend.onrender.com/api/v1";
+const API_BASE_URL = "https://luco-backend.onrender.com/api/v1"
 
 // API Functions
 const dashboardAPI = {
-  getMessages: async (token: string, params?: { skip?: number; limit?: number }): Promise<Message[]> => {
-    const queryParams = new URLSearchParams();
-    queryParams.append("skip", (params?.skip || 0).toString());
-    queryParams.append("limit", (params?.limit || 100).toString());
+  getMessages: async (params?: { skip?: number; limit?: number }): Promise<Message[]> => {
+    const queryParams = new URLSearchParams()
+    queryParams.append("skip", (params?.skip || 0).toString())
+    queryParams.append("limit", (params?.limit || 100).toString())
 
-    const response = await fetch(`${API_BASE_URL}/account/reports/messages?${queryParams.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
-    if (!response.ok) throw new Error("Failed to fetch messages");
-    return response.json();
+    const response = await fetch(`${API_BASE_URL}/account/reports/messages?${queryParams.toString()}`)
+    if (!response.ok) throw new Error("Failed to fetch messages")
+    return response.json()
   },
 
-  getSummary: async (token: string): Promise<Summary> => {
-    const response = await fetch(`${API_BASE_URL}/account/reports/summary`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
-    if (!response.ok) throw new Error("Failed to fetch summary");
-    return response.json();
+  getSummary: async (): Promise<Summary> => {
+    const response = await fetch(`${API_BASE_URL}/account/reports/summary`)
+    if (!response.ok) throw new Error("Failed to fetch summary")
+    return response.json()
   },
 
-  getSpending: async (token: string): Promise<SpendingReport> => {
-    const response = await fetch(`${API_BASE_URL}/account/reports/spending`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
-    if (!response.ok) throw new Error("Failed to fetch spending report");
-    return response.json();
+  getSpending: async (): Promise<SpendingReport> => {
+    const response = await fetch(`${API_BASE_URL}/account/reports/spending`)
+    if (!response.ok) throw new Error("Failed to fetch spending report")
+    return response.json()
   },
-};
+}
 
 // Utility functions
 const getStatusIcon = (status: string) => {
-  const normalizedStatus = status.toLowerCase();
+  const normalizedStatus = status.toLowerCase()
   switch (normalizedStatus) {
     case "success":
     case "delivered":
-      return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+      return <CheckCircle2 className="h-4 w-4 text-emerald-500" />
     case "failed":
-      return <XCircle className="h-4 w-4 text-red-500" />;
+      return <XCircle className="h-4 w-4 text-red-500" />
     case "pending":
-      return <Clock className="h-4 w-4 text-amber-500" />;
+      return <Clock className="h-4 w-4 text-amber-500" />
     default:
-      return null;
+      return null
   }
-};
+}
 
 const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
+  const date = new Date(dateString)
   return date.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  });
-};
+  })
+}
 
 const formatCurrency = (amount: number) => {
-  return `UGX ${amount.toLocaleString()}`;
-};
+  return `UGX ${amount.toLocaleString()}`
+}
 
 const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: any) => {
-  const RADIAN = Math.PI / 180;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  const RADIAN = Math.PI / 180
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5
+  const x = cx + radius * Math.cos(-midAngle * RADIAN)
+  const y = cy + radius * Math.sin(-midAngle * RADIAN)
 
-  if (percent < 0.05) return null; // Don't show label if less than 5%
+  if (percent < 0.05) return null // Don't show label if less than 5%
 
   return (
     <text
@@ -214,166 +194,148 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent
     >
       {`${(percent * 100).toFixed(0)}%`}
     </text>
-  );
-};
+  )
+}
 
 export default function Home() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
-  const { user } = useUser();
-  const router = useRouter();
-  const { showToast } = useToast();
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [messages, setMessages] = React.useState<Message[]>([]);
-  const [summary, setSummary] = React.useState<Summary | null>(null);
-  const [spending, setSpending] = React.useState<SpendingReport | null>(null);
+  const { showToast } = useToast()
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [messages, setMessages] = React.useState<Message[]>([])
+  const [summary, setSummary] = React.useState<Summary | null>(null)
+  const [spending, setSpending] = React.useState<SpendingReport | null>(null)
   const [components, setComponents] = React.useState<DashboardComponent[]>([
     { id: "stats", title: "Message Statistics", type: "stats", order: 0 },
     { id: "wallet", title: "Wallet Overview", type: "wallet", order: 1 },
     { id: "charts", title: "Analytics", type: "charts", order: 2 },
     { id: "activity", title: "Recent Activity", type: "activity", order: 3 },
-  ]);
-  const [draggedItem, setDraggedItem] = React.useState<string | null>(null);
-
-  // Redirect if not signed in
-  React.useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      router.push("/sign-in");
-    }
-  }, [isLoaded, isSignedIn, router]);
+  ])
+  const [draggedItem, setDraggedItem] = React.useState<string | null>(null)
 
   // Fetch dashboard data with retry mechanism
   const fetchData = async (retries = 3) => {
-    if (!isSignedIn || !getToken) return;
-
     for (let i = 0; i < retries; i++) {
       try {
-        setIsLoading(true);
-        const token = await getToken();
-        if (!token) throw new Error("No authentication token available");
-
+        setIsLoading(true)
         const [messagesData, summaryData, spendingData] = await Promise.all([
-          dashboardAPI.getMessages(token, { limit: 100 }),
-          dashboardAPI.getSummary(token),
-          dashboardAPI.getSpending(token),
-        ]);
-
-        console.log("Messages:", messagesData);
-        console.log("Summary:", summaryData);
-        console.log("Spending:", spendingData);
+          dashboardAPI.getMessages({ limit: 100 }),
+          dashboardAPI.getSummary(),
+          dashboardAPI.getSpending(),
+        ])
+        console.log("Messages:", messagesData)
+        console.log("Summary:", summaryData)
+        console.log("Spending:", spendingData)
 
         if (messagesData && summaryData && spendingData) {
-          setMessages(messagesData);
-          setSummary(summaryData);
-          setSpending(spendingData);
-          showToast("Dashboard Loaded", "All data synchronized successfully", "success");
-          break;
+          setMessages(messagesData)
+          setSummary(summaryData)
+          setSpending(spendingData)
+          showToast("Dashboard Loaded", "All data synchronized successfully", "success")
+          break
         } else {
-          throw new Error("Invalid data received from API");
+          throw new Error("Invalid data received from API")
         }
       } catch (error) {
         if (i === retries - 1) {
-          console.error("Fetch error after retries:", error);
-          showToast("Error", error instanceof Error ? error.message : "Failed to load dashboard", "error");
+          console.error("Fetch error after retries:", error)
+          showToast("Error", error instanceof Error ? error.message : "Failed to load dashboard", "error")
         }
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
     }
-  };
+  }
 
   React.useEffect(() => {
-    if (isSignedIn) {
-      fetchData();
-    }
-  }, [isSignedIn]);
+    fetchData()
+  }, [])
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
-    setDraggedItem(id);
-    e.dataTransfer.effectAllowed = "move";
-  };
+    setDraggedItem(id)
+    e.dataTransfer.effectAllowed = "move"
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+  }
 
   const handleDrop = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    if (!draggedItem || draggedItem === targetId) return;
+    e.preventDefault()
+    if (!draggedItem || draggedItem === targetId) return
 
-    const newComponents = [...components];
-    const draggedIndex = newComponents.findIndex((c) => c.id === draggedItem);
-    const targetIndex = newComponents.findIndex((c) => c.id === targetId);
+    const newComponents = [...components]
+    const draggedIndex = newComponents.findIndex((c) => c.id === draggedItem)
+    const targetIndex = newComponents.findIndex((c) => c.id === targetId)
 
-    const [removed] = newComponents.splice(draggedIndex, 1);
-    newComponents.splice(targetIndex, 0, removed);
+    const [removed] = newComponents.splice(draggedIndex, 1)
+    newComponents.splice(targetIndex, 0, removed)
 
-    newComponents.forEach((c, i) => (c.order = i));
-    setComponents(newComponents);
-    setDraggedItem(null);
-    showToast("Layout Updated", "Dashboard sections reordered", "info");
-  };
+    newComponents.forEach((c, i) => (c.order = i))
+    setComponents(newComponents)
+    setDraggedItem(null)
+    showToast("Layout Updated", "Dashboard sections reordered", "info")
+  }
 
   // Prepare chart data with proper fallbacks
   const messageStatusData = React.useMemo(() => {
-    if (!summary) return [];
-
+    if (!summary) return []
+    
     const data = [
       { name: "Delivered", value: summary.messages.delivered, color: "#10b981" },
       { name: "Pending", value: summary.messages.pending, color: "#f59e0b" },
       { name: "Failed", value: summary.messages.failed, color: "#ef4444" },
-    ];
+    ]
 
-    return data.filter((item) => item.value > 0);
-  }, [summary]);
+    return data.filter(item => item.value > 0)
+  }, [summary])
 
   // Group messages by day for weekly overview
   const weeklyData = React.useMemo(() => {
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const groupedByDay: Record<string, { sent: number; delivered: number; failed: number }> = {};
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const groupedByDay: Record<string, { sent: number; delivered: number; failed: number }> = {}
 
     messages.forEach((msg) => {
-      const date = new Date(msg.created_at);
-      const dayName = days[date.getDay()];
+      const date = new Date(msg.created_at)
+      const dayName = days[date.getDay()]
 
       if (!groupedByDay[dayName]) {
-        groupedByDay[dayName] = { sent: 0, delivered: 0, failed: 0 };
+        groupedByDay[dayName] = { sent: 0, delivered: 0, failed: 0 }
       }
 
-      groupedByDay[dayName].sent++;
+      groupedByDay[dayName].sent++
       if (msg.status.toLowerCase() === "delivered" || msg.status.toLowerCase() === "success") {
-        groupedByDay[dayName].delivered++;
+        groupedByDay[dayName].delivered++
       } else if (msg.status.toLowerCase() === "failed") {
-        groupedByDay[dayName].failed++;
+        groupedByDay[dayName].failed++
       }
-    });
+    })
 
     return days.map((day) => ({
       day,
       sent: groupedByDay[day]?.sent || 0,
       delivered: groupedByDay[day]?.delivered || 0,
       failed: groupedByDay[day]?.failed || 0,
-    }));
-  }, [messages]);
+    }))
+  }, [messages])
 
   // Group messages by hour for timeline
   const timelineData = React.useMemo(() => {
-    const hours = ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"];
-    const groupedByHour: Record<string, number> = {};
+    const hours = ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"]
+    const groupedByHour: Record<string, number> = {}
 
     messages.forEach((msg) => {
-      const date = new Date(msg.created_at);
-      const hour = Math.floor(date.getHours() / 4) * 4;
-      const timeKey = `${hour.toString().padStart(2, "0")}:00`;
+      const date = new Date(msg.created_at)
+      const hour = Math.floor(date.getHours() / 4) * 4
+      const timeKey = `${hour.toString().padStart(2, "0")}:00`
 
-      groupedByHour[timeKey] = (groupedByHour[timeKey] || 0) + 1;
-    });
+      groupedByHour[timeKey] = (groupedByHour[timeKey] || 0) + 1
+    })
 
     return hours.map((time) => ({
       time,
       messages: groupedByHour[time] || 0,
-    }));
-  }, [messages]);
+    }))
+  }, [messages])
 
   const renderComponent = (component: DashboardComponent) => {
     switch (component.type) {
@@ -390,8 +352,7 @@ export default function Home() {
                     <span className="font-medium text-emerald-500">
                       {summary && summary.messages.total_sent > 0
                         ? ((summary.messages.delivered / summary.messages.total_sent) * 100).toFixed(1)
-                        : 0}
-                      %
+                        : 0}%
                     </span>
                     <span className="text-muted-foreground">delivered</span>
                   </div>
@@ -411,8 +372,7 @@ export default function Home() {
                     <span className="font-medium text-emerald-500">
                       {summary && summary.messages.total_sent > 0
                         ? ((summary.messages.delivered / summary.messages.total_sent) * 100).toFixed(1)
-                        : 0}
-                      %
+                        : 0}%
                     </span>
                     <span className="text-muted-foreground">success rate</span>
                   </div>
@@ -432,8 +392,7 @@ export default function Home() {
                     <span className="font-medium text-amber-500">
                       {summary && summary.messages.total_sent > 0
                         ? ((summary.messages.pending / summary.messages.total_sent) * 100).toFixed(1)
-                        : 0}
-                      %
+                        : 0}%
                     </span>
                     <span className="text-muted-foreground">in queue</span>
                   </div>
@@ -453,8 +412,7 @@ export default function Home() {
                     <span className="font-medium text-red-500">
                       {summary && summary.messages.total_sent > 0
                         ? ((summary.messages.failed / summary.messages.total_sent) * 100).toFixed(1)
-                        : 0}
-                      %
+                        : 0}%
                     </span>
                     <span className="text-muted-foreground">error rate</span>
                   </div>
@@ -465,12 +423,12 @@ export default function Home() {
               </div>
             </Card>
           </div>
-        );
+        )
 
       case "wallet":
         return (
           <div className="grid gap-4 md:grid-cols-3">
-            <Card className="p-6 shadow-none border-amber-600 backdrop-blur">
+            <Card className="p-6  shadow-none border-amber-600 backdrop-blur">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-muted-foreground">Current Balance</p>
@@ -501,7 +459,7 @@ export default function Home() {
               </div>
             </Card>
           </div>
-        );
+        )
 
       case "charts":
         return (
@@ -549,8 +507,8 @@ export default function Home() {
                     </ResponsiveContainer>
                     <div className="mt-6 grid grid-cols-3 gap-4">
                       {messageStatusData.map((item) => {
-                        const total = messageStatusData.reduce((acc, i) => acc + i.value, 0);
-                        const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
+                        const total = messageStatusData.reduce((acc, i) => acc + i.value, 0)
+                        const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : 0
                         return (
                           <div key={item.name} className="flex items-center gap-2">
                             <div
@@ -563,7 +521,7 @@ export default function Home() {
                               <p className="text-xs text-muted-foreground">{percentage}%</p>
                             </div>
                           </div>
-                        );
+                        )
                       })}
                     </div>
                   </>
@@ -639,7 +597,7 @@ export default function Home() {
               </ResponsiveContainer>
             </Card>
           </div>
-        );
+        )
 
       case "activity":
         return (
@@ -684,8 +642,8 @@ export default function Home() {
                             msg.status.toLowerCase() === "delivered" || msg.status.toLowerCase() === "success"
                               ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
                               : msg.status.toLowerCase() === "failed"
-                              ? "bg-red-500/10 text-red-500 border-red-500/20"
-                              : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                ? "bg-red-500/10 text-red-500 border-red-500/20"
+                                : "bg-amber-500/10 text-amber-500 border-amber-500/20"
                           }`}
                         >
                           {msg.status}
@@ -701,14 +659,14 @@ export default function Home() {
               </div>
             )}
           </Card>
-        );
+        )
 
       default:
-        return null;
+        return null
     }
-  };
+  }
 
-  if (!isLoaded || isLoading) {
+  if (isLoading) {
     return (
       <PageLayout>
         <div className="space-y-6">
@@ -728,11 +686,7 @@ export default function Home() {
           </div>
         </div>
       </PageLayout>
-    );
-  }
-
-  if (!isSignedIn) {
-    return null; // Redirect handled by useEffect
+    )
   }
 
   return (
@@ -743,7 +697,7 @@ export default function Home() {
           <div>
             <h1 className="text-xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-sm text-muted-foreground">
-              Welcome back, {user?.username || summary?.account.username || "User"}! Monitor your messaging activity.
+              Welcome back, {summary?.account.username || "User"}! Monitor your messaging activity.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -780,7 +734,7 @@ export default function Home() {
             ))}
         </div>
 
-        <Card className="p-6 border-border/50 backdrop-blur shadow-none">
+        <Card className="p-6 border-border/50  backdrop-blur shadow-none">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-lg">Ready to send a message?</h3>
@@ -796,5 +750,5 @@ export default function Home() {
         </Card>
       </div>
     </PageLayout>
-  );
+  )
 }
