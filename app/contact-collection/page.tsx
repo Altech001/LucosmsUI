@@ -320,9 +320,7 @@ export default function ContactCollectionPage() {
 
       if (response.ok) {
         showToast("Success", "Group updated successfully", "success")
-        setIsEditGroupOpen(false)
-        setEditingGroup(null)
-        setGroupForm({ name: "", description: "" })
+        closeEditGroupDialog()
         fetchGroups()
       } else {
         throw new Error("Failed to update group")
@@ -391,11 +389,13 @@ export default function ContactCollectionPage() {
           fetchContacts()
           fetchGroups()
         } else {
-          throw new Error("Failed to add contact to group")
+          const groupError = await groupResponse.json().catch(() => ({}))
+          throw new Error(groupError.detail || "Failed to add contact to group")
         }
       } else {
-        const error: { detail?: string } = await response.json()
-        throw new Error(error.detail || "Failed to add contact")
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.detail || errorData.message || `Failed to add contact (${response.status})`
+        throw new Error(errorMessage)
       }
     } catch (error) {
       console.error('Error adding contact:', error)
@@ -683,6 +683,13 @@ export default function ContactCollectionPage() {
       description: group.description || ""
     })
     setIsEditGroupOpen(true)
+  }
+
+  // Close edit group dialog
+  const closeEditGroupDialog = (): void => {
+    setIsEditGroupOpen(false)
+    setEditingGroup(null)
+    setGroupForm({ name: "", description: "" })
   }
 
   // Reset create group form
@@ -1214,13 +1221,7 @@ export default function ContactCollectionPage() {
       </Tabs>
 
       {/* Edit Group Dialog */}
-      <Dialog open={isEditGroupOpen} onOpenChange={(open) => {
-        setIsEditGroupOpen(open)
-        if (!open) {
-          setEditingGroup(null)
-          setGroupForm({ name: "", description: "" })
-        }
-      }}>
+      <Dialog open={isEditGroupOpen} onOpenChange={setIsEditGroupOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Group</DialogTitle>
@@ -1249,7 +1250,7 @@ export default function ContactCollectionPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditGroupOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={closeEditGroupDialog}>Cancel</Button>
             <Button onClick={handleEditGroup} disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Group
