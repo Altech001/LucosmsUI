@@ -248,8 +248,8 @@ export default function Home() {
     for (let i = 0; i < retries; i++) {
       try {
         setIsLoading(true);
-        // Get token with default template - this matches what your backend expects
-        const token = await getToken({ template: "default" });
+        // Get token without template - Clerk will use the default JWT
+        const token = await getToken();
         if (!token) {
           console.error("No authentication token available");
           throw new Error("No authentication token available");

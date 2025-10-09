@@ -59,8 +59,8 @@ export function WalletProvider({
   // Fetch wallet data
   const fetchWallet = React.useCallback(async () => {
     try {
-      // Get token with default template - this matches what your backend expects
-      const token = await getToken({ template: "default" });
+      // Get token without template - Clerk will use the default JWT
+      const token = await getToken();
       if (!token) {
         console.warn("No authentication token available for wallet");
         return;
@@ -89,8 +89,8 @@ export function WalletProvider({
   // Fetch notifications (using messages as notifications)
   const fetchNotifications = React.useCallback(async () => {
     try {
-      // Get token with default template - this matches what your backend expects
-      const token = await getToken({ template: "default" });
+      // Get token without template - Clerk will use the default JWT
+      const token = await getToken();
       if (!token) {
         console.warn("No authentication token available for notifications");
         return; // Skip fetching if no token
