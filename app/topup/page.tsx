@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -21,9 +22,19 @@ import {
   TrendingDown,
   Clock,
   DollarSign,
+  Phone,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/contexts/toast-context";
 import { Breadcrumb } from "@/components/breadcrumb";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Types
 interface WalletData {
@@ -55,8 +66,33 @@ interface TopUpResponse {
   created_at: string;
 }
 
+interface PhoneVerificationResponse {
+  identityname: string;
+  message: string;
+  success: boolean;
+}
+
+interface PaymentResponse {
+  message: string;
+  data: {
+    message: string;
+    response: string;
+  };
+}
+
+interface WebhookResponse {
+  message: string;
+  status: string;
+  amount: number;
+  number: string;
+  created: string;
+  transid: string;
+  reference: string;
+}
+
 // API Configuration
 const API_BASE_URL = "https://luco-backend.onrender.com/api/v1";
+const PAYMENT_API_BASE_URL = "https://lucopay-backend.vercel.app";
 
 // API Functions
 const walletAPI = {
@@ -117,6 +153,53 @@ const walletAPI = {
   },
 };
 
+const paymentAPI = {
+  verifyPhone: async (msisdn: string): Promise<PhoneVerificationResponse> => {
+    const response = await fetch(`${PAYMENT_API_BASE_URL}/identity/msisdn`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({ msisdn }),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to verify phone number");
+    }
+    return response.json();
+  },
+
+  requestPayment: async (amount: string, number: string, refer: string): Promise<PaymentResponse> => {
+    const response = await fetch(`${PAYMENT_API_BASE_URL}/api/v1/request_payment`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({ amount, number, refer }),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to request payment");
+    }
+    return response.json();
+  },
+
+  checkPaymentStatus: async (reference: string): Promise<WebhookResponse> => {
+    const response = await fetch(`${PAYMENT_API_BASE_URL}/api/v1/payment_webhook`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({ reference }),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to check payment status");
+    }
+    return response.json();
+  },
+};
+
 const topupOptions = [
   { amount: 1000, bonus: 1, popular: false },
   { amount: 25000, bonus: 20, popular: false },
@@ -133,12 +216,21 @@ export default function TopUpPage() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [fetchingWallet, setFetchingWallet] = React.useState(true);
-  const [selectedAmount, setSelectedAmount] = React.useState<number | null>(
-    null
-  );
+  const [selectedAmount, setSelectedAmount] = React.useState<number | null>(null);
   const [customAmount, setCustomAmount] = React.useState("");
   const [processingTopUp, setProcessingTopUp] = React.useState(false);
   const [authChecked, setAuthChecked] = React.useState(false);
+
+  // Payment flow states
+  const [showPhoneDialog, setShowPhoneDialog] = React.useState(false);
+  const [phoneNumber, setPhoneNumber] = React.useState("");
+  const [verifiedName, setVerifiedName] = React.useState("");
+  const [isVerifying, setIsVerifying] = React.useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = React.useState(false);
+  const [paymentAmount, setPaymentAmount] = React.useState(0);
+  const [paymentReference, setPaymentReference] = React.useState("");
+  const [isProcessingPayment, setIsProcessingPayment] = React.useState(false);
+  const [paymentStatus, setPaymentStatus] = React.useState<"pending" | "succeeded" | "failed" | null>(null);
 
   // Check authentication
   React.useEffect(() => {
@@ -210,41 +302,171 @@ export default function TopUpPage() {
     }
   }, [authChecked, fetchWallet, fetchTransactions]);
 
-  // Handle preset top-up
-  const handlePresetTopUp = async (amount: number) => {
-    setSelectedAmount(amount);
-    setProcessingTopUp(true);
+  // Generate unique reference
+  const generateReference = () => {
+    return `REF${Date.now()}${Math.random().toString(36).substr(2, 9)}`;
+  };
+
+  // Format phone number
+  const formatPhoneNumber = (phone: string) => {
+    // Remove any non-digit characters
+    let cleaned = phone.replace(/\D/g, '');
+    
+    // If it starts with 0, replace with 256
+    if (cleaned.startsWith('0')) {
+      cleaned = '256' + cleaned.slice(1);
+    }
+    
+    // If it doesn't start with 256, add it
+    if (!cleaned.startsWith('256')) {
+      cleaned = '256' + cleaned;
+    }
+    
+    return cleaned;
+  };
+
+  // Verify phone number
+  const handleVerifyPhone = async () => {
+    if (!phoneNumber) {
+      showToast("Validation Error", "Please enter your phone number", "warning");
+      return;
+    }
+
+    const formattedPhone = formatPhoneNumber(phoneNumber);
+    
+    if (formattedPhone.length !== 12) {
+      showToast("Validation Error", "Please enter a valid phone number", "warning");
+      return;
+    }
+
+    setIsVerifying(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      const token = await getToken();
-      if (!token) {
-        showToast("Error", "Authentication required", "error");
-        return;
+      const result = await paymentAPI.verifyPhone(`+${formattedPhone}`);
+      
+      if (result.success) {
+        setVerifiedName(result.identityname);
+        setIsPhoneVerified(true);
+        showToast("Success", result.message, "success");
+      } else {
+        showToast("Error", "Phone verification failed", "error");
       }
-
-      await walletAPI.topUp(token, { amount });
-      showToast(
-        "Success",
-        `Successfully topped up UGX ${amount.toLocaleString()}`,
-        "success"
-      );
-      fetchWallet();
-      fetchTransactions();
-      setSelectedAmount(null);
     } catch (error) {
       showToast(
         "Error",
-        error instanceof Error ? error.message : "Failed to process top-up",
+        error instanceof Error ? error.message : "Failed to verify phone number",
         "error"
       );
     } finally {
-      setProcessingTopUp(false);
+      setIsVerifying(false);
     }
   };
 
+  // Process payment
+  const handleProcessPayment = async () => {
+    const formattedPhone = formatPhoneNumber(phoneNumber);
+    const reference = generateReference();
+    setPaymentReference(reference);
+    setIsProcessingPayment(true);
+    setPaymentStatus("pending");
+
+    try {
+      // Request payment
+      const paymentResult = await paymentAPI.requestPayment(
+        paymentAmount.toString(),
+        formattedPhone,
+        reference
+      );
+
+      showToast("Success", "Payment request sent. Please check your phone to complete the payment.", "success");
+
+      // Poll for payment status
+      let attempts = 0;
+      const maxAttempts = 30; // Poll for 2 minutes (30 * 4 seconds)
+      
+      const checkStatus = async () => {
+        try {
+          const statusResult = await paymentAPI.checkPaymentStatus(reference);
+          
+          if (statusResult.status === "succeeded") {
+            setPaymentStatus("succeeded");
+            setIsProcessingPayment(false);
+            
+            // Credit wallet via backend
+            const token = await getToken();
+            if (token) {
+              await walletAPI.topUp(token, { amount: paymentAmount });
+              await fetchWallet();
+              await fetchTransactions();
+            }
+            
+            showToast("Success", `Payment successful! UGX ${paymentAmount.toLocaleString()} has been added to your wallet.`, "success");
+            
+            // Reset and close dialog
+            setTimeout(() => {
+              setShowPhoneDialog(false);
+              resetPaymentFlow();
+            }, 2000);
+            
+          } else if (statusResult.status === "failed") {
+            setPaymentStatus("failed");
+            setIsProcessingPayment(false);
+            showToast("Error", "Payment failed. Please try again.", "error");
+            
+          } else if (attempts < maxAttempts) {
+            attempts++;
+            setTimeout(checkStatus, 4000); // Check every 4 seconds
+          } else {
+            setPaymentStatus("failed");
+            setIsProcessingPayment(false);
+            showToast("Error", "Payment timeout. Please try again.", "error");
+          }
+        } catch (error) {
+          if (attempts < maxAttempts) {
+            attempts++;
+            setTimeout(checkStatus, 4000);
+          } else {
+            setPaymentStatus("failed");
+            setIsProcessingPayment(false);
+            showToast("Error", "Failed to check payment status", "error");
+          }
+        }
+      };
+
+      // Start polling after 2 seconds
+      setTimeout(checkStatus, 2000);
+
+    } catch (error) {
+      setIsProcessingPayment(false);
+      setPaymentStatus("failed");
+      showToast(
+        "Error",
+        error instanceof Error ? error.message : "Failed to process payment",
+        "error"
+      );
+    }
+  };
+
+  // Reset payment flow
+  const resetPaymentFlow = () => {
+    setPhoneNumber("");
+    setVerifiedName("");
+    setIsPhoneVerified(false);
+    setPaymentAmount(0);
+    setPaymentReference("");
+    setPaymentStatus(null);
+    setSelectedAmount(null);
+    setCustomAmount("");
+  };
+
+  // Handle preset top-up
+  const handlePresetTopUp = (amount: number) => {
+    setPaymentAmount(amount);
+    setSelectedAmount(amount);
+    setShowPhoneDialog(true);
+  };
+
   // Handle custom top-up
-  const handleCustomTopUp = async () => {
+  const handleCustomTopUp = () => {
     const amount = parseFloat(customAmount);
 
     if (!amount || amount <= 0) {
@@ -261,34 +483,8 @@ export default function TopUpPage() {
       return;
     }
 
-    setProcessingTopUp(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      const token = await getToken();
-      if (!token) {
-        showToast("Error", "Authentication required", "error");
-        return;
-      }
-
-      await walletAPI.topUp(token, { amount: Math.floor(amount) });
-      showToast(
-        "Success",
-        `Successfully topped up UGX ${amount.toLocaleString()}`,
-        "success"
-      );
-      setCustomAmount("");
-      fetchWallet();
-      fetchTransactions();
-    } catch (error) {
-      showToast(
-        "Error",
-        error instanceof Error ? error.message : "Failed to process top-up",
-        "error"
-      );
-    } finally {
-      setProcessingTopUp(false);
-    }
+    setPaymentAmount(Math.floor(amount));
+    setShowPhoneDialog(true);
   };
 
   // Calculate messages from balance
@@ -386,9 +582,7 @@ export default function TopUpPage() {
                           ? "ring-2 ring-primary"
                           : ""
                       }`}
-                      onClick={() =>
-                        !processingTopUp && handlePresetTopUp(option.amount)
-                      }
+                      onClick={() => handlePresetTopUp(option.amount)}
                     >
                       {option.popular && (
                         <div className="absolute -top-2 left-1/2 -translate-x-1/2">
@@ -398,29 +592,21 @@ export default function TopUpPage() {
                         </div>
                       )}
                       <CardContent className="pt-6 text-center">
-                        {processingTopUp && selectedAmount === option.amount ? (
-                          <div className="flex justify-center py-4">
-                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <div className="text-xl font-bold">
+                          UGX {option.amount.toLocaleString()}
+                        </div>
+                        {option.bonus > 0 && (
+                          <div className="mt-2 text-xs text-green-600 dark:text-green-400 font-medium">
+                            +{option.bonus}% bonus
                           </div>
-                        ) : (
-                          <>
-                            <div className="text-xl font-bold">
-                              UGX {option.amount.toLocaleString()}
-                            </div>
-                            {option.bonus > 0 && (
-                              <div className="mt-2 text-xs text-green-600 dark:text-green-400 font-medium">
-                                +{option.bonus}% bonus
-                              </div>
-                            )}
-                            <div className="mt-3 text-xs text-muted-foreground">
-                              ≈{" "}
-                              {calculateMessages(
-                                option.amount * (1 + option.bonus / 100)
-                              )}{" "}
-                              messages
-                            </div>
-                          </>
                         )}
+                        <div className="mt-3 text-xs text-muted-foreground">
+                          ≈{" "}
+                          {calculateMessages(
+                            option.amount * (1 + option.bonus / 100)
+                          )}{" "}
+                          messages
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -559,7 +745,6 @@ export default function TopUpPage() {
                       onChange={(e) => setCustomAmount(e.target.value)}
                       className="pl-12"
                       min="1000"
-                      disabled={processingTopUp}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -568,16 +753,9 @@ export default function TopUpPage() {
                   <Button
                     className="w-full"
                     onClick={handleCustomTopUp}
-                    disabled={processingTopUp || !customAmount}
+                    disabled={!customAmount}
                   >
-                    {processingTopUp ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      "Submit Top Up"
-                    )}
+                    Submit Top Up
                   </Button>
                 </div>
               </CardContent>
@@ -599,6 +777,179 @@ export default function TopUpPage() {
             </Card>
           </div>
         </div>
+
+        {/* Payment Dialog */}
+        <Dialog open={showPhoneDialog} onOpenChange={(open) => {
+          if (!open && !isProcessingPayment) {
+            setShowPhoneDialog(false);
+            resetPaymentFlow();
+          }
+        }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Complete Payment</DialogTitle>
+              <DialogDescription>
+                Verify your phone number to proceed with the payment
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              {/* Amount Display */}
+              <div className="p-4 bg-primary/5 rounded-lg">
+                <p className="text-sm text-muted-foreground">Amount to pay</p>
+                <p className="text-2xl font-bold">UGX {paymentAmount.toLocaleString()}</p>
+              </div>
+
+              {/* Phone Number Input */}
+              {!isPhoneVerified && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Phone Number</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="tel"
+                        placeholder="0700000000"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="pl-10"
+                        disabled={isVerifying}
+                      />
+                    </div>
+                    <Button 
+                      onClick={handleVerifyPhone} 
+                      disabled={isVerifying || !phoneNumber}
+                      variant="outline"
+                    >
+                      {isVerifying ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Verify"
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Enter your MTN or Airtel number
+                  </p>
+                </div>
+              )}
+
+              {/* Verified Name Display */}
+              {isPhoneVerified && !paymentStatus && (
+                <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                        Phone Verified
+                      </p>
+                      <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                        {verifiedName}
+                      </p>
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                        +{formatPhoneNumber(phoneNumber)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Status */}
+              {paymentStatus === "pending" && (
+                <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-start gap-3">
+                    <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                        Processing Payment
+                      </p>
+                      <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                        Please check your phone and enter your PIN to complete the payment
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {paymentStatus === "succeeded" && (
+                <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                        Payment Successful!
+                      </p>
+                      <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                        Your wallet has been credited with UGX {paymentAmount.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {paymentStatus === "failed" && (
+                <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-red-900 dark:text-red-100">
+                        Payment Failed
+                      </p>
+                      <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                        The payment could not be processed. Please try again.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                {!paymentStatus && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => {
+                        setShowPhoneDialog(false);
+                        resetPaymentFlow();
+                      }}
+                      disabled={isProcessingPayment}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      className="flex-1"
+                      onClick={handleProcessPayment}
+                      disabled={!isPhoneVerified || isProcessingPayment}
+                    >
+                      {isProcessingPayment ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        "Continue"
+                      )}
+                    </Button>
+                  </>
+                )}
+                
+                {paymentStatus === "failed" && (
+                  <Button 
+                    className="w-full"
+                    onClick={() => {
+                      setShowPhoneDialog(false);
+                      resetPaymentFlow();
+                    }}
+                  >
+                    Close
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </PageLayout>
   );
