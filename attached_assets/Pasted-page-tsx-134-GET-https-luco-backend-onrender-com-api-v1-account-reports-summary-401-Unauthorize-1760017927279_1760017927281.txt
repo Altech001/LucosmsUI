@@ -1,0 +1,161 @@
+page.tsx:134 
+ GET https://luco-backend.onrender.com/api/v1/account/reports/summary 401 (Unauthorized)
+HistoryPage.useEffect.fetchData	@	page.tsx:134
+HistoryPage.useEffect	@	page.tsx:156
+"use client"		
+Function.all	@	VM5650 <anonymous>:1
+Function.all	@	VM5650 <anonymous>:1
+"use server"		
+(app-pages-browser)/./node_modules/next/dist/client/app-index.js	@	main-app.js?v=1760017868524:160
+(app-pages-browser)/./node_modules/next/dist/client/app-next-dev.js	@	main-app.js?v=1760017868524:182
+__webpack_exec__	@	main-app.js?v=1760017868524:1889
+(anonymous)	@	main-app.js?v=1760017868524:1890
+(anonymous)	@	main-app.js?v=1760017868524:9
+
+page.tsx:133 
+ GET https://luco-backend.onrender.com/api/v1/account/reports/messages?skip=0&limit=100 401 (Unauthorized)
+HistoryPage.useEffect.fetchData	@	page.tsx:133
+HistoryPage.useEffect	@	page.tsx:156
+"use client"		
+Function.all	@	VM5650 <anonymous>:1
+Function.all	@	VM5650 <anonymous>:1
+"use server"		
+(app-pages-browser)/./node_modules/next/dist/client/app-index.js	@	main-app.js?v=1760017868524:160
+(app-pages-browser)/./node_modules/next/dist/client/app-next-dev.js	@	main-app.js?v=1760017868524:182
+__webpack_exec__	@	main-app.js?v=1760017868524:1889
+(anonymous)	@	main-app.js?v=1760017868524:1890
+(anonymous)	@	main-app.js?v=1760017868524:9
+page.tsx:135 
+ GET https://luco-backend.onrender.com/api/v1/account/reports/spending 401 (Unauthorized)
+HistoryPage.useEffect.fetchData	@	page.tsx:135
+HistoryPage.useEffect	@	page.tsx:156
+"use client"		
+Function.all	@	VM5650 <anonymous>:1
+Function.all	@	VM5650 <anonymous>:1
+"use server"		
+(app-pages-browser)/./node_modules/next/dist/client/app-index.js	@	main-app.js?v=1760017868524:160
+(app-pages-browser)/./node_modules/next/dist/client/app-next-dev.js	@	main-app.js?v=1760017868524:182
+__webpack_exec__	@	main-app.js?v=1760017868524:1889
+(anonymous)	@	main-app.js?v=1760017868524:1890
+(anonymous)	@	main-app.js?v=1760017868524:9
+clerk.browser.js:2 
+ POST https://hardy-pegasus-6.clerk.accounts.dev/v1/client/sessions/sess_33pb8XX7…10&_clerk_js_version=5.99.0&__clerk_db_jwt=dvb_33pazHxY9IpMBQhKaJZkbash9Sg 404 (Not Found)
+a.retryImmediately	@	clerk.browser.js:2
+s	@	clerk.browser.js:15
+o	@	clerk.browser.js:2
+await in o		
+_baseFetch	@	clerk.browser.js:1
+(anonymous)	@	clerk.browser.js:1
+execute	@	clerk.browser.js:1
+_fetch	@	clerk.browser.js:1
+create	@	clerk.browser.js:2
+_getToken	@	clerk.browser.js:2
+factor	@	clerk.browser.js:2
+s	@	clerk.browser.js:15
+getToken	@	clerk.browser.js:2
+await in eval		
+WalletProvider.useCallback[fetchWallet]	@	wallet-context.tsx:63
+WalletProvider.useEffect.initialFetch	@	wallet-context.tsx:177
+WalletProvider.useEffect	@	wallet-context.tsx:181
+"use client"		
+RootLayout	@	layout.tsx:45
+"use server"		
+(app-pages-browser)/./node_modules/next/dist/client/app-index.js	@	main-app.js?v=1760017868524:160
+(app-pages-browser)/./node_modules/next/dist/client/app-next-dev.js	@	main-app.js?v=1760017868524:182
+__webpack_exec__	@	main-app.js?v=1760017868524:1889
+(anonymous)	@	main-app.js?v=1760017868524:1890
+(anonymous)	@	main-app.js?v=1760017868524:9
+wallet-context.tsx:155 Error fetching notifications: e: No JWT template exists with name: default
+    at H._baseFetch (clerk.browser.js:2:171)
+    at async Z.execute (clerk.browser.js:1:8929)
+    at async tf.create (clerk.browser.js:2:91754)
+WalletProvider.useCallback[fetchNotifications]	@	wallet-context.tsx:155
+await in WalletProvider.useCallback[fetchNotifications]		
+WalletProvider.useEffect.initialFetch	@	wallet-context.tsx:177
+WalletProvider.useEffect	@	wallet-context.tsx:181
+"use client"		
+RootLayout	@	layout.tsx:45
+"use server"		
+(app-pages-browser)/./node_modules/next/dist/client/app-index.js	@	main-app.js?v=1760017868524:160
+(app-pages-browser)/./node_modules/next/dist/client/app-next-dev.js	@	main-app.js?v=1760017868524:182
+__webpack_exec__	@	main-app.js?v=1760017868524:1889
+(anonymous)	@	main-app.js?v=1760017868524:1890
+(anonymous)	@	main-app.js?v=1760017868524:9
+wallet-context.tsx:84 Error fetching wallet: e: No JWT template exists with name: default
+    at H._baseFetch (clerk.browser.js:2:171)
+    at async Z.execute (clerk.browser.js:1:8929)
+    at async tf.create (clerk.browser.js:2:91754)
+WalletProvider.useCallback[fetchWallet]	@	wallet-context.tsx:84
+await in WalletProvider.useCallback[fetchWallet]		
+WalletProvider.useEffect.initialFetch	@	wallet-context.tsx:177
+WalletProvider.useEffect	@	wallet-context.tsx:181
+"use client"		
+RootLayout	@	layout.tsx:45
+"use server"		
+(app-pages-browser)/./node_modules/next/dist/client/app-index.js	@	main-app.js?v=1760017868524:160
+(app-pages-browser)/./node_modules/next/dist/client/app-next-dev.js	@	main-app.js?v=1760017868524:182
+__webpack_exec__	@	main-app.js?v=1760017868524:1889
+(anonymous)	@	main-app.js?v=1760017868524:1890
+(anonymous)	@	main-app.js?v=1760017868524:9
+clerk.browser.js:2 
+ POST https://hardy-pegasus-6.clerk.accounts.dev/v1/client/sessions/sess_33pb8XX7…10&_clerk_js_version=5.99.0&__clerk_db_jwt=dvb_33pazHxY9IpMBQhKaJZkbash9Sg 404 (Not Found)
+a.retryImmediately	@	clerk.browser.js:2
+s	@	clerk.browser.js:15
+o	@	clerk.browser.js:2
+await in o		
+_baseFetch	@	clerk.browser.js:1
+(anonymous)	@	clerk.browser.js:1
+execute	@	clerk.browser.js:1
+_fetch	@	clerk.browser.js:1
+create	@	clerk.browser.js:2
+_getToken	@	clerk.browser.js:2
+factor	@	clerk.browser.js:2
+s	@	clerk.browser.js:15
+getToken	@	clerk.browser.js:2
+await in eval		
+WalletProvider.useCallback[fetchWallet]	@	wallet-context.tsx:63
+WalletProvider.useEffect.intervalId	@	wallet-context.tsx:187
+setInterval		
+WalletProvider.useEffect	@	wallet-context.tsx:186
+"use client"		
+RootLayout	@	layout.tsx:45
+"use server"		
+(app-pages-browser)/./node_modules/next/dist/client/app-index.js	@	main-app.js?v=1760017868524:160
+(app-pages-browser)/./node_modules/next/dist/client/app-next-dev.js	@	main-app.js?v=1760017868524:182
+__webpack_exec__	@	main-app.js?v=1760017868524:1889
+(anonymous)	@	main-app.js?v=1760017868524:1890
+(anonymous)	@	main-app.js?v=1760017868524:9
+wallet-context.tsx:155 Error fetching notifications: e: No JWT template exists with name: default
+    at H._baseFetch (clerk.browser.js:2:171)
+    at async Z.execute (clerk.browser.js:1:8929)
+    at async tf.create (clerk.browser.js:2:91754)
+WalletProvider.useCallback[fetchNotifications]	@	wallet-context.tsx:155
+await in WalletProvider.useCallback[fetchNotifications]		
+WalletProvider.useEffect.intervalId	@	wallet-context.tsx:188
+setInterval		
+WalletProvider.useEffect	@	wallet-context.tsx:186
+"use client"		
+RootLayout	@	layout.tsx:45
+"use server"		
+(app-pages-browser)/./node_modules/next/dist/client/app-index.js	@	main-app.js?v=1760017868524:160
+(app-pages-browser)/./node_modules/next/dist/client/app-next-dev.js	@	main-app.js?v=1760017868524:182
+__webpack_exec__	@	main-app.js?v=1760017868524:1889
+(anonymous)	@	main-app.js?v=1760017868524:1890
+(anonymous)	@	main-app.js?v=1760017868524:9
+wallet-context.tsx:84 Error fetching wallet: e: No JWT template exists with name: default
+    at H._baseFetch (clerk.browser.js:2:171)
+    at async Z.execute (clerk.browser.js:1:8929)
+    at async tf.create (clerk.browser.js:2:91754)
+WalletProvider.useCallback[fetchWallet]	@	wallet-context.tsx:84
+await in WalletProvider.useCallback[fetchWallet]		
+WalletProvider.useEffect.intervalId	@	wallet-context.tsx:187
+setInterval		
+WalletProvider.useEffect	@	wallet-context.tsx:186
+"use client"		
+RootLayout	@	layout.tsx:45
+"use server"		
+(app-pages-browser)/./node_modules/next/dist/client/app-index.js	@	main-app.js?v=1760017868524:160
+(app-pages-browser)/./node_modules/next/dist/client/app-next-dev.js	@	main-app.js?v=1760017868524:182
+__webpack_exec__	@	main-app.js?v=1760017868524:1889
+(anonymous)	@	main-app.js?v=1760017868524:1890
+(anonymous)	@	main-app.js?v=1760017868524:9
