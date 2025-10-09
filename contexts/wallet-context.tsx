@@ -50,7 +50,7 @@ export function WalletProvider({
   children,
   refreshInterval = 30000, // 30 seconds default
 }: WalletProviderProps) {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   const [walletData, setWalletData] = React.useState<WalletData | null>(null);
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -58,6 +58,12 @@ export function WalletProvider({
 
   // Fetch wallet data
   const fetchWallet = React.useCallback(async () => {
+    // Don't fetch if Clerk hasn't loaded or user isn't signed in
+    if (!isLoaded || !isSignedIn) {
+      console.log("[Wallet] Skipping fetch - not ready or not signed in");
+      return;
+    }
+
     try {
       // Wait a bit for session to be ready
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -91,10 +97,16 @@ export function WalletProvider({
       console.error("Error fetching wallet:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch wallet");
     }
-  }, [getToken]);
+  }, [getToken, isLoaded, isSignedIn]);
 
   // Fetch notifications (using messages as notifications)
   const fetchNotifications = React.useCallback(async () => {
+    // Don't fetch if Clerk hasn't loaded or user isn't signed in
+    if (!isLoaded || !isSignedIn) {
+      console.log("[Notifications] Skipping fetch - not ready or not signed in");
+      return;
+    }
+
     try {
       // Wait a bit for session to be ready
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -167,7 +179,7 @@ export function WalletProvider({
       console.error("Error fetching notifications:", err);
       // Don't set error for notifications to avoid disrupting the app
     }
-  }, [getToken]);
+  }, [getToken, isLoaded, isSignedIn]);
 
   // Get relative time
   const getRelativeTime = (dateString: string): string => {
