@@ -41,6 +41,7 @@ import {
 } from "lucide-react"
 import { useState, useEffect, ChangeEvent } from "react"
 import { useToast } from "@/contexts/toast-context"
+import { useAuth } from "@clerk/nextjs"
 
 const API_BASE_URL = "https://luco-backend.onrender.com/api/v1"
 
@@ -142,12 +143,23 @@ export default function ContactCollectionPage() {
   })
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
 
+  const { getToken } = useAuth()
+
   // Fetch groups with contact count
   const fetchGroups = async (): Promise<void> => {
     try {
       setLoading(true)
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/groups/?skip=0&limit=100`, {
-        headers: { 'accept': 'application/json' }
+        headers: { 
+          'accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
       })
       if (response.ok) {
         const data: Group[] = await response.json()
@@ -180,8 +192,17 @@ export default function ContactCollectionPage() {
   const fetchContacts = async (): Promise<void> => {
     try {
       setLoading(true)
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/contacts/?skip=0&limit=100&is_active=true`, {
-        headers: { 'accept': 'application/json' }
+        headers: { 
+          'accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
       })
       if (response.ok) {
         const data: Contact[] = await response.json()
@@ -199,8 +220,17 @@ export default function ContactCollectionPage() {
   const fetchGroupContacts = async (groupId: number): Promise<void> => {
     try {
       setLoadingGroupContacts(true)
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/groups/${groupId}/contacts?skip=0&limit=100`, {
-        headers: { 'accept': 'application/json' }
+        headers: { 
+          'accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
       })
       if (response.ok) {
         const data: Contact[] = await response.json()
@@ -223,11 +253,18 @@ export default function ContactCollectionPage() {
 
     try {
       setLoading(true)
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/groups/`, {
         method: 'POST',
         headers: {
           'accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           name: groupForm.name,

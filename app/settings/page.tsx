@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Bell, Code, DeleteIcon, Edit, Lock, Package, Plus, Ticket, Trash2 } from "lucide-react"
 import { useState } from "react"
+import { useAuth } from "@clerk/nextjs"
 
 const mockServices = [
   {

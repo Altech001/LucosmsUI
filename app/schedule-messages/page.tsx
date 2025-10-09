@@ -21,6 +21,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/contexts/toast-context"
+import { useAuth } from "@clerk/nextjs"
 
 // Types
 interface ScheduledMessage {
@@ -79,12 +80,13 @@ const API_BASE_URL = "https://luco-backend.onrender.com/api/v1"
 
 // API Functions
 const scheduleAPI = {
-  createSchedule: async (data: CreateScheduleRequest): Promise<ScheduledMessage> => {
+  createSchedule: async (data: CreateScheduleRequest, token: string): Promise<ScheduledMessage> => {
     const response = await fetch(`${API_BASE_URL}/schedule/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         accept: "application/json",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(data),
     })
@@ -95,12 +97,13 @@ const scheduleAPI = {
     return response.json()
   },
 
-  createBulkSchedule: async (data: BulkScheduleRequest): Promise<BulkScheduleResponse> => {
+  createBulkSchedule: async (data: BulkScheduleRequest, token: string): Promise<BulkScheduleResponse> => {
     const response = await fetch(`${API_BASE_URL}/schedule/bulk`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         accept: "application/json",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(data),
     })
@@ -115,14 +118,17 @@ const scheduleAPI = {
     skip?: number
     limit?: number
     status?: "pending" | "sent" | "failed" | "cancelled"
-  }): Promise<ScheduledMessage[]> => {
+  }, token?: string): Promise<ScheduledMessage[]> => {
     const queryParams = new URLSearchParams()
     if (params?.skip !== undefined) queryParams.append("skip", params.skip.toString())
     if (params?.limit !== undefined) queryParams.append("limit", params.limit.toString())
     if (params?.status) queryParams.append("status", params.status)
 
+    const headers: Record<string, string> = { accept: "application/json" }
+    if (token) headers.Authorization = `Bearer ${token}`
+
     const response = await fetch(`${API_BASE_URL}/schedule/?${queryParams.toString()}`, {
-      headers: { accept: "application/json" },
+      headers,
     })
     if (!response.ok) {
       throw new Error("Failed to fetch schedules")
@@ -211,6 +217,7 @@ const groupsAPI = {
 
 export default function ScheduleMessagesPage() {
   const { showToast } = useToast()
+  const { getToken } = useAuth()
   const [searchQuery, setSearchQuery] = React.useState("")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false)
@@ -245,8 +252,14 @@ export default function ScheduleMessagesPage() {
   const fetchSchedules = React.useCallback(async () => {
     setLoading(true)
     try {
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const params = statusFilter !== "all" ? { status: statusFilter, limit: 100 } : { limit: 100 }
-      const data = await scheduleAPI.getSchedules(params)
+      const data = await scheduleAPI.getSchedules(params, token)
       setScheduledMessages(data)
     } catch (error) {
       showToast("Error", error instanceof Error ? error.message : "Failed to fetch schedules", "error")

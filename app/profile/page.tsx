@@ -7,12 +7,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/contexts/toast-context" // Assuming toast context is available
+import { useToast } from "@/contexts/toast-context"
 import { Breadcrumb } from "@/components/breadcrumb"
-
+import { useAuth } from "@clerk/nextjs"
 
 export default function ProfilePage() {
   const { showToast } = useToast()
+  const { getToken } = useAuth()
   const [profileData, setProfileData] = React.useState({
     username: "",
     email: "",
@@ -26,8 +27,17 @@ export default function ProfilePage() {
     const fetchProfileData = async () => {
       try {
         setIsLoading(true)
+        const token = await getToken()
+        if (!token) {
+          showToast("Error", "Authentication required", "error")
+          return
+        }
+
         const response = await fetch("https://luco-backend.onrender.com/api/v1/account/wallet", {
-          headers: { "accept": "application/json" },
+          headers: { 
+            "accept": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
         })
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
         const data = await response.json()
