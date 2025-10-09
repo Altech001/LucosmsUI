@@ -299,11 +299,18 @@ export default function ContactCollectionPage() {
 
     try {
       setLoading(true)
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/groups/${editingGroup.id}`, {
         method: 'PUT',
         headers: {
           'accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           name: groupForm.name,
@@ -337,6 +344,12 @@ export default function ContactCollectionPage() {
 
     try {
       setLoading(true)
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const formattedPhone = formatPhoneNumberUG(contactForm.phone)
       const fullName = `${contactForm.firstName} ${contactForm.lastName}`.trim()
 
@@ -345,7 +358,8 @@ export default function ContactCollectionPage() {
         method: 'POST',
         headers: {
           'accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           phone_number: formattedPhone,
@@ -362,7 +376,8 @@ export default function ContactCollectionPage() {
           method: 'POST',
           headers: {
             'accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
             contact_ids: [newContact.id]
@@ -400,6 +415,12 @@ export default function ContactCollectionPage() {
 
     try {
       setLoading(true)
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const formattedPhone = formatPhoneNumberUG(contactForm.phone)
       const fullName = `${contactForm.firstName} ${contactForm.lastName}`.trim()
 
@@ -407,7 +428,8 @@ export default function ContactCollectionPage() {
         method: 'PUT',
         headers: {
           'accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           phone_number: formattedPhone,
@@ -489,12 +511,19 @@ export default function ContactCollectionPage() {
         return
       }
 
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       // Bulk create contacts
       const bulkResponse = await fetch(`${API_BASE_URL}/contacts/bulk`, {
         method: 'POST',
         headers: {
           'accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(contactsToImport)
       })
@@ -503,7 +532,11 @@ export default function ContactCollectionPage() {
         const result: BulkImportResponse = await bulkResponse.json()
         
         // Get newly created contacts
-        const allContactsResponse = await fetch(`${API_BASE_URL}/contacts/?skip=0&limit=1000&is_active=true`)
+        const allContactsResponse = await fetch(`${API_BASE_URL}/contacts/?skip=0&limit=1000&is_active=true`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
         const allContacts: Contact[] = await allContactsResponse.json()
         
         // Get IDs of newly created contacts (last N contacts)
@@ -515,7 +548,8 @@ export default function ContactCollectionPage() {
             method: 'POST',
             headers: {
               'accept': 'application/json',
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({ contact_ids: newContactIds })
           })
@@ -545,9 +579,18 @@ export default function ContactCollectionPage() {
     }
 
     try {
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/groups/${group.id}`, {
         method: 'DELETE',
-        headers: { 'accept': '*/*' }
+        headers: { 
+          'accept': '*/*',
+          'Authorization': `Bearer ${token}`
+        }
       })
 
       if (response.ok) {
@@ -569,9 +612,18 @@ export default function ContactCollectionPage() {
     }
 
     try {
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/contacts/${contact.id}`, {
         method: 'DELETE',
-        headers: { 'accept': '*/*' }
+        headers: { 
+          'accept': '*/*',
+          'Authorization': `Bearer ${token}`
+        }
       })
 
       if (response.ok) {
@@ -596,9 +648,18 @@ export default function ContactCollectionPage() {
     }
 
     try {
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/groups/${groupId}/contacts/${contactId}`, {
         method: 'DELETE',
-        headers: { 'accept': 'application/json' }
+        headers: { 
+          'accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
       })
 
       if (response.ok) {
@@ -622,6 +683,12 @@ export default function ContactCollectionPage() {
       description: group.description || ""
     })
     setIsEditGroupOpen(true)
+  }
+
+  // Reset create group form
+  const resetCreateGroupForm = (): void => {
+    setGroupForm({ name: "", description: "" })
+    setEditingGroup(null)
   }
 
   // Open view group contacts dialog
@@ -895,7 +962,10 @@ export default function ContactCollectionPage() {
                   </CardTitle>
                   <CardDescription>Organize contacts into groups</CardDescription>
                 </div>
-                <Dialog open={isCreateGroupOpen} onOpenChange={setIsCreateGroupOpen}>
+                <Dialog open={isCreateGroupOpen} onOpenChange={(open) => {
+                  setIsCreateGroupOpen(open)
+                  if (open) resetCreateGroupForm()
+                }}>
                   <DialogTrigger asChild>
                     <Button className="gap-2">
                       <Plus className="h-4 w-4" />
@@ -1144,7 +1214,13 @@ export default function ContactCollectionPage() {
       </Tabs>
 
       {/* Edit Group Dialog */}
-      <Dialog open={isEditGroupOpen} onOpenChange={setIsEditGroupOpen}>
+      <Dialog open={isEditGroupOpen} onOpenChange={(open) => {
+        setIsEditGroupOpen(open)
+        if (!open) {
+          setEditingGroup(null)
+          setGroupForm({ name: "", description: "" })
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Group</DialogTitle>
