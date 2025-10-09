@@ -1,12 +1,20 @@
-"use client"
 
-import * as React from "react"
-import { PageLayout } from "@/components/page-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+"use client";
+
+import * as React from "react";
+import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import { PageLayout } from "@/components/page-layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -14,221 +22,321 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
-  Search,
-  Plus,
-  Copy,
-  Edit,
-  Loader2,
-  MessageSquare,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   FileText,
+  Plus,
+  Search,
+  MoreVertical,
+  Edit,
   Trash2,
-} from "lucide-react"
-import { Breadcrumb } from "@/components/breadcrumb"
-import { useToast } from "@/contexts/toast-context"
+  Copy,
+  Loader2,
+} from "lucide-react";
+import { useToast } from "@/contexts/toast-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 
+// Types
 interface Template {
-  id: number
-  user_id: string
-  name: string
-  content: string
-  created_at: string
+  id: number;
+  user_id: string;
+  name: string;
+  content: string;
+  created_at: string;
 }
 
-interface TemplateFormData {
-  name: string
-  content: string
+interface CreateTemplateRequest {
+  name: string;
+  content: string;
 }
 
-const API_BASE_URL = "https://luco-backend.onrender.com/api/v1"
+// API Configuration
+const API_BASE_URL = "https://luco-backend.onrender.com/api/v1";
 
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })
-}
+export default function TemplatePage() {
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [templates, setTemplates] = React.useState<Template[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+  const [editingTemplate, setEditingTemplate] = React.useState<Template | null>(null);
+  const [newTemplate, setNewTemplate] = React.useState({
+    name: "",
+    content: "",
+  });
 
-export default function TemplatesPage() {
-  const [templates, setTemplates] = React.useState<Template[]>([])
-  const [loading, setLoading] = React.useState(true)
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false)
-  const [selectedTemplate, setSelectedTemplate] = React.useState<Template | null>(null)
-  const [formData, setFormData] = React.useState<TemplateFormData>({ name: "", content: "" })
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const { showToast } = useToast()
-
-  // Fetch templates on mount
+  // Redirect if not signed in
   React.useEffect(() => {
-    fetchTemplates()
-  }, [])
+    if (isLoaded && !isSignedIn) {
+      router.push("/sign-in");
+    }
+  }, [isLoaded, isSignedIn, router]);
 
-  // Debounced search
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery.trim()) {
-        searchTemplates(searchQuery)
-      } else {
-        fetchTemplates()
-      }
-    }, 500)
-
-    return () => clearTimeout(timer)
-  }, [searchQuery])
-
+  // Fetch templates
   const fetchTemplates = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch(`${API_BASE_URL}/templates/?skip=0&limit=100`)
-      if (!response.ok) throw new Error("Failed to fetch templates")
-      const data = await response.json()
-      setTemplates(data)
-    } catch (error) {
-      console.error("Error fetching templates:", error)
-      showToast("Error", "Failed to load templates. Please try again.", "error")
-    } finally {
-      setLoading(false)
-    }
-  }
+    if (!isSignedIn || !getToken) return;
 
-  const searchTemplates = async (query: string) => {
     try {
-      setLoading(true)
-      const response = await fetch(`${API_BASE_URL}/templates/search/${encodeURIComponent(query)}`)
-      if (!response.ok) throw new Error("Search failed")
-      const data = await response.json()
-      setTemplates(data)
-    } catch (error) {
-      console.error("Error searching templates:", error)
-      showToast("Search Error", "Failed to search templates. Showing all templates.", "warning")
-      fetchTemplates() // Fallback to showing all templates
-    } finally {
-      setLoading(false)
-    }
-  }
+      setIsLoading(true);
+      
+      // Get token
+      const token = await getToken();
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
 
+      const response = await fetch(
+        `${API_BASE_URL}/templates/?skip=0&limit=100`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch templates");
+      }
+
+      const data = await response.json();
+      setTemplates(data);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      showToast(
+        "Error",
+        error instanceof Error ? error.message : "Failed to load templates",
+        "error"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (isSignedIn) {
+      fetchTemplates();
+    }
+  }, [isSignedIn]);
+
+  // Create template
   const createTemplate = async () => {
-    if (!formData.name.trim() || !formData.content.trim()) {
-      showToast("Validation Error", "Please fill in all fields.", "warning")
-      return
+    if (!newTemplate.name || !newTemplate.content) {
+      showToast("Error", "Please fill in all fields", "error");
+      return;
     }
 
     try {
-      setIsSubmitting(true)
+      const token = await getToken();
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
+
       const response = await fetch(`${API_BASE_URL}/templates/`, {
         method: "POST",
         headers: {
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          accept: "application/json",
+          Accept: "application/json",
         },
-        body: JSON.stringify(formData),
-      })
+        body: JSON.stringify(newTemplate),
+      });
 
-      if (!response.ok) throw new Error("Failed to create template")
+      if (!response.ok) {
+        throw new Error("Failed to create template");
+      }
 
-      const newTemplate = await response.json()
-      setTemplates((prev) => [newTemplate, ...prev])
-      setIsCreateDialogOpen(false)
-      setFormData({ name: "", content: "" })
-      showToast("Success", "Template created successfully!", "success")
+      showToast("Success", "Template created successfully", "success");
+      setIsCreateDialogOpen(false);
+      setNewTemplate({ name: "", content: "" });
+      fetchTemplates();
     } catch (error) {
-      console.error("Error creating template:", error)
-      showToast("Error", "Failed to create template. Please try again.", "error")
-    } finally {
-      setIsSubmitting(false)
+      console.error("Error creating template:", error);
+      showToast(
+        "Error",
+        error instanceof Error ? error.message : "Failed to create template",
+        "error"
+      );
     }
-  }
+  };
 
+  // Update template
   const updateTemplate = async () => {
-    if (!selectedTemplate || !formData.name.trim() || !formData.content.trim()) {
-      showToast("Validation Error", "Please fill in all fields.", "warning")
-      return
-    }
+    if (!editingTemplate) return;
 
     try {
-      setIsSubmitting(true)
-      const response = await fetch(`${API_BASE_URL}/templates/${selectedTemplate.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          accept: "application/json",
-        },
-        body: JSON.stringify(formData),
-      })
+      const token = await getToken();
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
 
-      if (!response.ok) throw new Error("Failed to update template")
+      const response = await fetch(
+        `${API_BASE_URL}/templates/${editingTemplate.id}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            name: editingTemplate.name,
+            content: editingTemplate.content,
+          }),
+        }
+      );
 
-      const updatedTemplate = await response.json()
-      setTemplates((prev) => prev.map((t) => (t.id === updatedTemplate.id ? updatedTemplate : t)))
-      setIsEditDialogOpen(false)
-      setSelectedTemplate(null)
-      setFormData({ name: "", content: "" })
-      showToast("Success", "Template updated successfully!", "success")
+      if (!response.ok) {
+        throw new Error("Failed to update template");
+      }
+
+      showToast("Success", "Template updated successfully", "success");
+      setIsEditDialogOpen(false);
+      setEditingTemplate(null);
+      fetchTemplates();
     } catch (error) {
-      console.error("Error updating template:", error)
-      showToast("Error", "Failed to update template. Please try again.", "error")
-    } finally {
-      setIsSubmitting(false)
+      console.error("Error updating template:", error);
+      showToast(
+        "Error",
+        error instanceof Error ? error.message : "Failed to update template",
+        "error"
+      );
     }
-  }
+  };
 
-  const deleteTemplate = async (template: Template) => {
-    if (!confirm(`Are you sure you want to delete "${template.name}"? This action cannot be undone.`)) {
-      return
-    }
-
+  // Delete template
+  const deleteTemplate = async (id: number) => {
     try {
-      setIsSubmitting(true)
-      const response = await fetch(`${API_BASE_URL}/templates/${template.id}`, {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
+
+      const response = await fetch(`${API_BASE_URL}/templates/${id}`, {
         method: "DELETE",
         headers: {
-          accept: "*/*",
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
         },
-      })
+      });
 
-      if (!response.ok) throw new Error("Failed to delete template")
+      if (!response.ok) {
+        throw new Error("Failed to delete template");
+      }
 
-      setTemplates((prev) => prev.filter((t) => t.id !== template.id))
-      showToast("Success", "Template deleted successfully!", "success")
+      showToast("Success", "Template deleted successfully", "success");
+      fetchTemplates();
     } catch (error) {
-      console.error("Error deleting template:", error)
-      showToast("Error", "Failed to delete template. Please try again.", "error")
-    } finally {
-      setIsSubmitting(false)
+      console.error("Error deleting template:", error);
+      showToast(
+        "Error",
+        error instanceof Error ? error.message : "Failed to delete template",
+        "error"
+      );
     }
+  };
+
+  // Filter templates
+  const filteredTemplates = templates.filter(
+    (template) =>
+      template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      template.content.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (!isLoaded || isLoading) {
+    return (
+      <PageLayout>
+        <div className="flex h-[400px] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </PageLayout>
+    );
   }
 
-  const copyToClipboard = (content: string) => {
-    navigator.clipboard.writeText(content)
-    showToast("Copied!", "Template content copied to clipboard.", "success")
-  }
-
-  const openCreateDialog = () => {
-    setFormData({ name: "", content: "" })
-    setIsCreateDialogOpen(true)
-  }
-
-  const openEditDialog = (template: Template) => {
-    setSelectedTemplate(template)
-    setFormData({ name: template.name, content: template.content })
-    setIsEditDialogOpen(true)
+  if (!isSignedIn) {
+    return null;
   }
 
   return (
     <PageLayout>
-      <div className="mx-auto max-w-6xl space-y-8 py-8">
-        <Breadcrumb items={[{ label: "Dashboard", href: "/" }, { label: "Templates" }]} />
+      <Breadcrumb
+        items={[{ label: "Dashboard", href: "/" }, { label: "Templates" }]}
+      />
 
-        <div className="space-y-4">
-          <h1 className="text-balance text-xl font-bold tracking-tight text-foreground">Message Templates</h1>
-          <p className="max-w-2xl text-pretty text-sm text-muted-foreground">
-            Create and manage reusable message templates to streamline your SMS campaigns.
-          </p>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Templates</h1>
+            <p className="text-muted-foreground">
+              Create and manage reusable message templates
+            </p>
+          </div>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                New Template
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Template</DialogTitle>
+                <DialogDescription>
+                  Create a new message template for quick composition
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Template Name</Label>
+                  <Input
+                    id="name"
+                    placeholder="e.g., Welcome Message"
+                    value={newTemplate.name}
+                    onChange={(e) =>
+                      setNewTemplate({ ...newTemplate, name: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="content">Message Content</Label>
+                  <Textarea
+                    id="content"
+                    placeholder="Enter your message template..."
+                    className="min-h-[120px]"
+                    value={newTemplate.content}
+                    onChange={(e) =>
+                      setNewTemplate({ ...newTemplate, content: e.target.value })
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {newTemplate.content.length} characters
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsCreateDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={createTemplate}>Create Template</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div className="flex items-center gap-4">
@@ -236,103 +344,94 @@ export default function TemplatesPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search templates..."
-              className="pl-9 shadow-none"
+              className="pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button size="lg" className="gap-2" onClick={openCreateDialog}>
-            <Plus className="h-4 w-4" />
-            Create Template
-          </Button>
         </div>
 
-        {loading ? (
-          <div className="flex h-[400px] items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading templates...</p>
-            </div>
-          </div>
-        ) : templates.length === 0 ? (
-          <Card className="border-border/40 bg-card/50 backdrop-blur">
-            <CardContent className="flex h-[400px] flex-col items-center justify-center gap-4">
-              <FileText className="h-12 w-12 text-muted-foreground/50" />
-              <div className="text-center">
-                <p className="text-lg font-semibold">No templates found</p>
-                <p className="text-sm text-muted-foreground">
-                  {searchQuery
-                    ? "Try a different search term"
-                    : "Create your first template to get started"}
-                </p>
-              </div>
+        {filteredTemplates.length === 0 ? (
+          <Card className="p-12">
+            <div className="text-center">
+              <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
+              <h3 className="mt-4 text-lg font-semibold">No templates found</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {searchQuery
+                  ? "Try adjusting your search"
+                  : "Create your first template to get started"}
+              </p>
               {!searchQuery && (
-                <Button onClick={openCreateDialog} className="gap-2">
-                  <Plus className="h-4 w-4" />
+                <Button
+                  className="mt-4"
+                  onClick={() => setIsCreateDialogOpen(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
                   Create Template
                 </Button>
               )}
-            </CardContent>
+            </div>
           </Card>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2">
-            {templates.map((template) => (
-              <Card
-                key={template.id}
-                className="border-border/40 bg-card/50 backdrop-blur transition-colors hover:bg-card/80 shadow-none"
-              >
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredTemplates.map((template) => (
+              <Card key={template.id} className="relative">
                 <CardHeader>
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                        <MessageSquare className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-xl">{template.name}</CardTitle>
-                        <CardDescription className="mt-1">
-                          <span className="text-xs text-muted-foreground">
-                            Created {formatDate(template.created_at)}
-                          </span>
-                        </CardDescription>
-                      </div>
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">{template.name}</CardTitle>
+                      <CardDescription className="mt-1">
+                        {new Date(template.created_at).toLocaleDateString()}
+                      </CardDescription>
                     </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setEditingTemplate(template);
+                            setIsEditDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            navigator.clipboard.writeText(template.content);
+                            showToast(
+                              "Copied",
+                              "Template copied to clipboard",
+                              "success"
+                            );
+                          }}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          Copy
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => deleteTemplate(template.id)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-lg border border-border/40 bg-muted/50 p-4">
-                    <p className="text-sm leading-relaxed text-muted-foreground">{template.content}</p>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">ID: #{template.id}</span>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-2"
-                        onClick={() => copyToClipboard(template.content)}
-                      >
-                        <Copy className="h-4 w-4" />
-                        Copy
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-2"
-                        onClick={() => openEditDialog(template)}
-                      >
-                        <Edit className="h-4 w-4" />
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-2 text-destructive hover:text-destructive"
-                        onClick={() => deleteTemplate(template)}
-                        disabled={isSubmitting}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground line-clamp-3">
+                    {template.content}
+                  </p>
+                  <div className="mt-4">
+                    <Badge variant="secondary">
+                      {template.content.length} characters
+                    </Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -340,103 +439,64 @@ export default function TemplatesPage() {
           </div>
         )}
 
-        {/* Create Dialog */}
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogContent className="sm:max-w-[450px]">
-            <DialogHeader>
-              <DialogTitle>Create New Template</DialogTitle>
-              <DialogDescription>
-                Create a reusable message template for your SMS campaigns.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Template Name</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g., Welcome Message"
-                  value={formData.name}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="content">Message Content</Label>
-                <Textarea
-                  id="content"
-                  placeholder="Enter your message template here..."
-                  rows={8}
-                  value={formData.content}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use variables like {"{name}"}, {"{code}"}, {"{date}"} for dynamic content
-                </p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={createTemplate} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  "Create Template"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
         {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[525px]">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Template</DialogTitle>
-              <DialogDescription>Make changes to your message template.</DialogDescription>
+              <DialogDescription>
+                Update your message template
+              </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-name">Template Name</Label>
-                <Input
-                  id="edit-name"
-                  placeholder="e.g., Welcome Message"
-                  value={formData.name}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                />
+            {editingTemplate && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Template Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={editingTemplate.name}
+                    onChange={(e) =>
+                      setEditingTemplate({
+                        ...editingTemplate,
+                        name: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-content">Message Content</Label>
+                  <Textarea
+                    id="edit-content"
+                    className="min-h-[120px]"
+                    value={editingTemplate.content}
+                    onChange={(e) =>
+                      setEditingTemplate({
+                        ...editingTemplate,
+                        content: e.target.value,
+                      })
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {editingTemplate.content.length} characters
+                  </p>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-content">Message Content</Label>
-                <Textarea
-                  id="edit-content"
-                  placeholder="Enter your message template here..."
-                  rows={6}
-                  value={formData.content}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
-                />
-              </div>
-            </div>
+            )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditDialogOpen(false);
+                  setEditingTemplate(null);
+                }}
+              >
                 Cancel
               </Button>
-              <Button onClick={updateTemplate} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Updating...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
-              </Button>
+              <Button onClick={updateTemplate}>Save Changes</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
     </PageLayout>
-  )
+  );
 }
