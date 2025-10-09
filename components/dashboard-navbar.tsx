@@ -24,7 +24,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useWallet, useCurrency } from "@/contexts/wallet-context"
 import * as React from "react"
-import { UserButton, UserProfile } from "@clerk/nextjs"
+import { UserButton } from "@clerk/nextjs";
+import dynamic from "next/dynamic";
+
+const ClientUserButton = dynamic(
+  () => import("@clerk/nextjs").then((mod) => mod.UserButton),
+  { ssr: false }
+);
 
 export function DashboardNavbar() {
   const router = useRouter()
@@ -74,8 +80,8 @@ export function DashboardNavbar() {
             )}
           </Button>
         </Link>
-        <UserButton/>
-        
+        <ClientUserButton />
+
         {walletData && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground px-2">
             <span>≈ {calculateMessages(walletData.wallet_balance)} SMS</span>
@@ -103,7 +109,7 @@ export function DashboardNavbar() {
           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           <span className="sr-only">Refresh</span>
         </Button>
-       
+
 
         <Dialog>
           <DialogTrigger asChild>
