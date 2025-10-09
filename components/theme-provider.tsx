@@ -13,49 +13,86 @@ type ThemeProviderProps = {
 type ThemeProviderState = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  resolvedTheme: "dark" | "light";
 };
 
 const initialState: ThemeProviderState = {
   theme: "system",
   setTheme: () => null,
+  resolvedTheme: "dark",
 };
 
 const ThemeProviderContext = React.createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
-  storageKey = "vite-ui-theme",
+  defaultTheme = "dark",
+  storageKey = "dashboard-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = React.useState<Theme>(defaultTheme);
+  const [theme, setThemeState] = React.useState<Theme>(() => {
+    // Initialize from localStorage on mount to avoid hydration mismatch
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(storageKey) as Theme | null;
+      return stored || defaultTheme;
+    }
+    return defaultTheme;
+  });
+  
+  const [resolvedTheme, setResolvedTheme] = React.useState<"dark" | "light">("dark");
+  const [mounted, setMounted] = React.useState(false);
 
+  // Handle mounting to avoid hydration issues
   React.useEffect(() => {
-    // Run only on client
-    const storedTheme = localStorage.getItem(storageKey) as Theme | null;
-    setTheme(storedTheme || defaultTheme);
-  }, [storageKey, defaultTheme]);
+    setMounted(true);
+  }, []);
 
+  // Apply theme to document
   React.useEffect(() => {
+    if (!mounted) return;
+
     const root = window.document.documentElement;
-    root.classList.remove("light", "dark");
+    const applyTheme = (newTheme: "dark" | "light") => {
+      root.classList.remove("light", "dark");
+      root.classList.add(newTheme);
+      setResolvedTheme(newTheme);
+    };
 
     if (theme === "system") {
       const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-      root.classList.add(systemTheme);
-      return;
+      applyTheme(systemTheme);
+      
+      // Listen for system theme changes
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      const handleChange = (e: MediaQueryListEvent) => {
+        applyTheme(e.matches ? "dark" : "light");
+      };
+      
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    } else {
+      applyTheme(theme);
     }
+  }, [theme, mounted]);
 
-    root.classList.add(theme);
-  }, [theme]);
+  const setTheme = React.useCallback((newTheme: Theme) => {
+    localStorage.setItem(storageKey, newTheme);
+    setThemeState(newTheme);
+  }, [storageKey]);
 
-  const value = {
-    theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
-      setTheme(theme);
-    },
-  };
+  const value = React.useMemo(
+    () => ({
+      theme,
+      setTheme,
+      resolvedTheme,
+    }),
+    [theme, setTheme, resolvedTheme]
+  );
+
+  // Prevent flash of unstyled content
+  if (!mounted) {
+    return <>{children}</>;
+  }
 
   return (
     <ThemeProviderContext.Provider {...props} value={value}>
