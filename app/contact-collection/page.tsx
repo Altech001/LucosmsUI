@@ -754,37 +754,30 @@ export default function ContactCollectionPage() {
 
   // Close edit group dialog
   const closeEditGroupDialog = (): void => {
+    setEditingGroup(null)
+    setEditGroupForm({ name: "", description: "" })
     setIsEditGroupOpen(false)
-    // Use setTimeout to ensure state updates complete before resetting
-    setTimeout(() => {
-      setEditingGroup(null)
-      setEditGroupForm({ name: "", description: "" })
-    }, 100)
   }
 
   // Reset create group form
   const resetCreateGroupForm = (): void => {
-    setTimeout(() => {
-      setCreateGroupForm({ name: "", description: "" })
-    }, 100)
+    setCreateGroupForm({ name: "", description: "" })
   }
 
   // Handle dialog state changes for create group
   const handleCreateDialogChange = (open: boolean): void => {
+    setIsCreateGroupOpen(open)
     if (!open) {
-      setIsCreateGroupOpen(false)
       resetCreateGroupForm()
-    } else {
-      setIsCreateGroupOpen(true)
     }
   }
 
   // Handle dialog state changes for edit group
   const handleEditDialogChange = (open: boolean): void => {
+    setIsEditGroupOpen(open)
     if (!open) {
-      closeEditGroupDialog()
-    } else {
-      setIsEditGroupOpen(true)
+      setEditingGroup(null)
+      setEditGroupForm({ name: "", description: "" })
     }
   }
 
