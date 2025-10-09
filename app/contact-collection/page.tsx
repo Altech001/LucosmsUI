@@ -131,8 +131,9 @@ export default function ContactCollectionPage() {
   const [loadingGroupContacts, setLoadingGroupContacts] = useState<boolean>(false)
   const { showToast } = useToast()
 
-  // Form states
-  const [groupForm, setGroupForm] = useState<GroupFormData>({ name: "", description: "" })
+  // Form states - separate for create and edit
+  const [createGroupForm, setCreateGroupForm] = useState<GroupFormData>({ name: "", description: "" })
+  const [editGroupForm, setEditGroupForm] = useState<GroupFormData>({ name: "", description: "" })
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [contactForm, setContactForm] = useState<ContactFormData>({
     firstName: "",
@@ -246,7 +247,7 @@ export default function ContactCollectionPage() {
 
   // Create group
   const handleCreateGroup = async (): Promise<void> => {
-    if (!groupForm.name) {
+    if (!createGroupForm.name) {
       showToast("Validation Error", "Group name is required", "warning")
       return
     }
@@ -267,15 +268,15 @@ export default function ContactCollectionPage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          name: groupForm.name,
-          description: groupForm.description || ""
+          name: createGroupForm.name,
+          description: createGroupForm.description || ""
         })
       })
 
       if (response.ok) {
         showToast("Success", "Group created successfully", "success")
         setIsCreateGroupOpen(false)
-        setGroupForm({ name: "", description: "" })
+        setCreateGroupForm({ name: "", description: "" })
         fetchGroups()
       } else {
         const error: { detail?: string } = await response.json()
@@ -292,7 +293,7 @@ export default function ContactCollectionPage() {
 
   // Edit group
   const handleEditGroup = async (): Promise<void> => {
-    if (!groupForm.name || !editingGroup) {
+    if (!editGroupForm.name || !editingGroup) {
       showToast("Validation Error", "Group name is required", "warning")
       return
     }
@@ -313,8 +314,8 @@ export default function ContactCollectionPage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          name: groupForm.name,
-          description: groupForm.description || ""
+          name: editGroupForm.name,
+          description: editGroupForm.description || ""
         })
       })
 
@@ -678,7 +679,7 @@ export default function ContactCollectionPage() {
   // Open edit group dialog
   const openEditGroupDialog = (group: Group): void => {
     setEditingGroup(group)
-    setGroupForm({
+    setEditGroupForm({
       name: group.name || "",
       description: group.description || ""
     })
@@ -689,13 +690,12 @@ export default function ContactCollectionPage() {
   const closeEditGroupDialog = (): void => {
     setIsEditGroupOpen(false)
     setEditingGroup(null)
-    setGroupForm({ name: "", description: "" })
+    setEditGroupForm({ name: "", description: "" })
   }
 
   // Reset create group form
   const resetCreateGroupForm = (): void => {
-    setGroupForm({ name: "", description: "" })
-    setEditingGroup(null)
+    setCreateGroupForm({ name: "", description: "" })
   }
 
   // Open view group contacts dialog
@@ -971,7 +971,7 @@ export default function ContactCollectionPage() {
                 </div>
                 <Dialog open={isCreateGroupOpen} onOpenChange={(open) => {
                   setIsCreateGroupOpen(open)
-                  if (open) resetCreateGroupForm()
+                  if (!open) resetCreateGroupForm()
                 }}>
                   <DialogTrigger asChild>
                     <Button className="gap-2">
@@ -986,23 +986,23 @@ export default function ContactCollectionPage() {
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
-                        <Label htmlFor="groupName">Group Name *</Label>
+                        <Label htmlFor="createGroupName">Group Name *</Label>
                         <Input 
-                          id="groupName" 
+                          id="createGroupName" 
                           placeholder="e.g., VIP Customers" 
-                          value={groupForm.name}
-                          onChange={(e: ChangeEvent<HTMLInputElement>) => setGroupForm({...groupForm, name: e.target.value})}
+                          value={createGroupForm.name}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => setCreateGroupForm({...createGroupForm, name: e.target.value})}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="groupDescription">Description</Label>
+                        <Label htmlFor="createGroupDescription">Description</Label>
                         <Textarea 
-                          id="groupDescription" 
+                          id="createGroupDescription" 
                           placeholder="Brief description..." 
                           rows={3}
-                          value={groupForm.description}
-                          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setGroupForm({...groupForm, description: e.target.value})}
+                          value={createGroupForm.description}
+                          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setCreateGroupForm({...createGroupForm, description: e.target.value})}
                         />
                       </div>
                     </div>
@@ -1221,7 +1221,10 @@ export default function ContactCollectionPage() {
       </Tabs>
 
       {/* Edit Group Dialog */}
-      <Dialog open={isEditGroupOpen} onOpenChange={setIsEditGroupOpen}>
+      <Dialog open={isEditGroupOpen} onOpenChange={(open) => {
+        if (!open) closeEditGroupDialog()
+        else setIsEditGroupOpen(true)
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Group</DialogTitle>
@@ -1233,8 +1236,8 @@ export default function ContactCollectionPage() {
               <Input 
                 id="editGroupName" 
                 placeholder="e.g., VIP Customers" 
-                value={groupForm.name}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setGroupForm({...groupForm, name: e.target.value})}
+                value={editGroupForm.name}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setEditGroupForm({...editGroupForm, name: e.target.value})}
               />
             </div>
 
@@ -1244,8 +1247,8 @@ export default function ContactCollectionPage() {
                 id="editGroupDescription" 
                 placeholder="Brief description..." 
                 rows={3}
-                value={groupForm.description}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setGroupForm({...groupForm, description: e.target.value})}
+                value={editGroupForm.description}
+                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEditGroupForm({...editGroupForm, description: e.target.value})}
               />
             </div>
           </div>
