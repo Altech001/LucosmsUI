@@ -768,7 +768,10 @@ export default function ContactCollectionPage() {
   const handleCreateDialogChange = (open: boolean): void => {
     setIsCreateGroupOpen(open)
     if (!open) {
-      resetCreateGroupForm()
+      // Defer state cleanup to prevent freeze during dialog close animation
+      requestAnimationFrame(() => {
+        resetCreateGroupForm()
+      })
     }
   }
 
@@ -776,8 +779,11 @@ export default function ContactCollectionPage() {
   const handleEditDialogChange = (open: boolean): void => {
     setIsEditGroupOpen(open)
     if (!open) {
-      setEditingGroup(null)
-      setEditGroupForm({ name: "", description: "" })
+      // Defer state cleanup to prevent freeze during dialog close animation
+      requestAnimationFrame(() => {
+        setEditingGroup(null)
+        setEditGroupForm({ name: "", description: "" })
+      })
     }
   }
 
