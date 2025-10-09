@@ -248,14 +248,24 @@ export default function Home() {
     for (let i = 0; i < retries; i++) {
       try {
         setIsLoading(true);
-        // Get token without template - Clerk will use the default JWT
+        
+        // Wait a bit for Clerk session to be fully ready
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Get token - Clerk will use the default JWT
         const token = await getToken();
+        
         if (!token) {
-          console.error("No authentication token available");
-          throw new Error("No authentication token available");
+          console.error("No authentication token available, attempt:", i + 1);
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+          throw new Error("No authentication token available after retries");
         }
 
-        console.log("Token obtained successfully, making API calls...");
+        console.log("Token obtained successfully:", token ? "Token exists" : "No token");
+        console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "N/A");
 
         const [messagesData, summaryData, spendingData] = await Promise.all([
           dashboardAPI.getMessages(token, { limit: 100 }),
