@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { Progress } from "@/components/ui/progress"
 import {
   Calendar,
   Download,
@@ -44,6 +45,7 @@ import {
 import { useState, useEffect, ChangeEvent } from "react"
 import { useToast } from "@/contexts/toast-context"
 import { useAuth } from "@clerk/nextjs"
+import * as XLSX from 'xlsx'
 
 const API_BASE_URL = "https://luco-backend.onrender.com/api/v1"
 
@@ -127,53 +129,41 @@ const extractPhoneNumbers = (text: string): string[] => {
   return [...new Set(matches.map(formatPhoneNumberUG))]
 }
 
-// Parse file and extract contacts - WITHOUT XLSX dependency
+// Parse file and extract contacts
 const parseFile = async (file: File): Promise<ContactToImport[]> => {
   const extension = file.name.split('.').pop()?.toLowerCase()
   
-  if (extension === 'csv' || extension === 'xlsx' || extension === 'xls') {
-    return parseAnyFile(file)
+  if (extension === 'csv') {
+    return parseCSV(file)
+  } else if (extension === 'xlsx' || extension === 'xls') {
+    return parseExcel(file)
   } else {
-    throw new Error('Unsupported file format. Please use CSV, XLSX, or XLS files.')
+    throw new Error('Unsupported file format')
   }
 }
 
-const parseAnyFile = async (file: File): Promise<ContactToImport[]> => {
+const parseCSV = async (file: File): Promise<ContactToImport[]> => {
   const text = await file.text()
-  const lines = text.split(/\r?\n/).filter(line => line.trim())
+  const lines = text.split('\n').filter(line => line.trim())
   
   if (lines.length === 0) return []
   
   const contacts: ContactToImport[] = []
-  const seenPhones = new Set<string>()
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
   
-  // Try to detect delimiter
-  const firstLine = lines[0]
-  const delimiter = firstLine.includes('\t') ? '\t' : 
-                   firstLine.includes(';') ? ';' : ','
-  
-  const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase())
-  const hasHeaders = headers.some(h => 
-    h.includes('name') || h.includes('phone') || h.includes('email') || h.includes('mobile')
-  )
-  
-  const startIndex = hasHeaders ? 1 : 0
-  
-  for (let i = startIndex; i < lines.length; i++) {
-    const values = lines[i].split(delimiter).map(v => v.trim().replace(/['"]/g, ''))
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim())
     
+    // Try structured parsing first
     let name = '', phone = '', email = ''
     
-    if (hasHeaders) {
-      // Structured parsing with headers
-      headers.forEach((header, index) => {
-        const value = values[index] || ''
-        if (header.includes('name') && !header.includes('phone')) name = value
-        else if (header.includes('phone') || header.includes('mobile') || header.includes('number') || header.includes('tel')) {
-          phone = value
-        } else if (header.includes('email') || header.includes('mail')) email = value
-      })
-    }
+    headers.forEach((header, index) => {
+      const value = values[index] || ''
+      if (header.includes('name')) name = value
+      else if (header.includes('phone') || header.includes('mobile') || header.includes('number')) {
+        phone = value
+      } else if (header.includes('email')) email = value
+    })
     
     // If no structured phone found, extract from all text
     if (!phone) {
@@ -182,35 +172,62 @@ const parseAnyFile = async (file: File): Promise<ContactToImport[]> => {
       if (phones.length > 0) phone = phones[0]
     }
     
-    // Try to find name from first non-phone column
-    if (!name && values.length > 0) {
-      for (const value of values) {
-        if (value && !extractPhoneNumbers(value).length && !value.includes('@')) {
-          name = value
-          break
-        }
-      }
-    }
-    
-    // Try to find email
-    if (!email) {
-      for (const value of values) {
-        if (value && value.includes('@')) {
-          email = value
-          break
-        }
-      }
-    }
-    
     // Generate name if missing
     if (!name && phone) {
-      name = `Contact ${contacts.length + 1}`
+      name = `Contact ${i}`
     }
     
-    if (phone && !seenPhones.has(phone)) {
-      seenPhones.add(phone)
+    if (phone) {
       contacts.push({
-        name: name || `Contact ${contacts.length + 1}`,
+        name: name || `Contact ${i}`,
+        phone_number: formatPhoneNumberUG(phone),
+        email: email || undefined
+      })
+    }
+  }
+  
+  return contacts
+}
+
+const parseExcel = async (file: File): Promise<ContactToImport[]> => {
+  const data = await file.arrayBuffer()
+  const workbook = XLSX.read(data, { type: 'array' })
+  const sheetName = workbook.SheetNames[0]
+  const worksheet = workbook.Sheets[sheetName]
+  const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
+  
+  if (jsonData.length === 0) return []
+  
+  const contacts: ContactToImport[] = []
+  const headers = jsonData[0].map((h: any) => String(h || '').toLowerCase())
+  
+  for (let i = 1; i < jsonData.length; i++) {
+    const row = jsonData[i]
+    let name = '', phone = '', email = ''
+    
+    // Try structured parsing
+    headers.forEach((header, index) => {
+      const value = String(row[index] || '').trim()
+      if (header.includes('name')) name = value
+      else if (header.includes('phone') || header.includes('mobile') || header.includes('number')) {
+        phone = value
+      } else if (header.includes('email')) email = value
+    })
+    
+    // Extract phones from all cells if no structured phone found
+    if (!phone) {
+      const allText = row.map(cell => String(cell || '')).join(' ')
+      const phones = extractPhoneNumbers(allText)
+      if (phones.length > 0) phone = phones[0]
+    }
+    
+    if (!name && phone) {
+      name = `Contact ${i}`
+    }
+    
+    if (phone) {
+      contacts.push({
+        name: name || `Contact ${i}`,
         phone_number: formatPhoneNumberUG(phone),
         email: email || undefined
       })
@@ -1025,9 +1042,7 @@ export default function ContactCollectionPage() {
                             <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                             <p className="text-sm font-medium text-blue-900">Extracting contacts...</p>
                           </div>
-                          <div className="w-full bg-blue-200 rounded-full h-2">
-                            <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
-                          </div>
+                          <Progress value={50} className="h-2" />
                         </div>
                       </CardContent>
                     </Card>
