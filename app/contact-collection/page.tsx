@@ -246,6 +246,7 @@ export default function ContactCollectionPage() {
   const [groups, setGroups] = useState<Group[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState<boolean>(false)
+  const [deleting, setDeleting] = useState<boolean>(false)
   
   // Separate dialog states
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState<boolean>(false)
@@ -773,6 +774,7 @@ export default function ContactCollectionPage() {
       return
     }
 
+    setDeleting(true)
     try {
       const token = await getToken()
       if (!token) {
@@ -817,6 +819,8 @@ export default function ContactCollectionPage() {
       }
     } catch (error) {
       showToast("Error", "Failed to delete group and contacts", "error")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -826,6 +830,7 @@ export default function ContactCollectionPage() {
       return
     }
 
+    setDeleting(true)
     try {
       const token = await getToken()
       if (!token) {
@@ -849,6 +854,8 @@ export default function ContactCollectionPage() {
       }
     } catch (error) {
       showToast("Error", "Failed to delete contact", "error")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -863,6 +870,7 @@ export default function ContactCollectionPage() {
       return
     }
 
+    setDeleting(true)
     try {
       const token = await getToken()
       if (!token) {
@@ -888,6 +896,8 @@ export default function ContactCollectionPage() {
       window.location.reload()
     } catch (error) {
       showToast("Error", "Failed to delete contacts", "error")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -897,6 +907,7 @@ export default function ContactCollectionPage() {
       return
     }
 
+    setDeleting(true)
     try {
       const token = await getToken()
       if (!token) {
@@ -921,6 +932,8 @@ export default function ContactCollectionPage() {
       }
     } catch (error) {
       showToast("Error", "Failed to remove contact from group", "error")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -1001,525 +1014,732 @@ export default function ContactCollectionPage() {
   })
 
   return (
-    <PageLayout>
-      <Breadcrumb items={[{ label: "Dashboard", href: "/" }, { label: "Contact Collection" }]} />
+    <>
+      <PageLayout>
+        <Breadcrumb items={[{ label: "Dashboard", href: "/" }, { label: "Contact Collection" }]} />
 
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <Card className="border-border/50 bg-card/50 backdrop-blur shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Contacts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalContacts}</div>
-            <p className="text-xs text-muted-foreground mt-1">All contacts</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50 bg-card/50 backdrop-blur shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Groups</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{groups.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Contact groups</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50 bg-card/50 backdrop-blur shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active Contacts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeContacts}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {totalContacts > 0 ? Math.round((activeContacts/totalContacts)*100) : 0}% active
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50 bg-card/50 backdrop-blur shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Largest Group</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{largestGroup?.contact_count || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1 truncate">
-              {largestGroup?.name || 'N/A'}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <div className="flex items-center justify-between">
-          <TabsList className="bg-muted/50">
-            <TabsTrigger value="groups">Groups</TabsTrigger>
-            <TabsTrigger value="contacts">All Contacts</TabsTrigger>
-          </TabsList>
-
-          <div className="flex gap-2">
-            <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 bg-transparent">
-                  <Upload className="h-4 w-4" />
-                  Import
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Import Contacts</DialogTitle>
-                  <DialogDescription>
-                    Upload CSV, XLSX, or XLS file to import contacts
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Select Group</Label>
-                    <Select value={importGroupId} onValueChange={setImportGroupId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose a group" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groups.map((group: Group) => (
-                          <SelectItem key={group.id} value={group.id.toString()}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Upload File</Label>
-                    <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-                      <FileSpreadsheet className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-                      <p className="text-sm font-medium mb-1">
-                        {selectedFile ? selectedFile.name : 'Click to select file'}
-                      </p>
-                      <p className="text-xs text-muted-foreground mb-3">
-                        CSV, XLSX, or XLS format
-                      </p>
-                      <Input 
-                        type="file" 
-                        accept=".csv,.xlsx,.xls" 
-                        className="hidden" 
-                        id="file-upload" 
-                        onChange={handleFileUpload} 
-                      />
-                      <Label htmlFor="file-upload" className="cursor-pointer">
-                        <Button variant="outline" className="mt-2" asChild>
-                          <span>Select File</span>
-                        </Button>
-                      </Label>
-                    </div>
-                  </div>
-
-                  {extractionProgress.isExtracting && (
-                    <Card className="bg-blue-50 border-blue-200">
-                      <CardContent className="pt-6">
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                            <p className="text-sm font-medium text-blue-900">Extracting contacts...</p>
-                          </div>
-                          <Progress value={50} className="h-2" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {!extractionProgress.isExtracting && extractionProgress.extractedContacts.length > 0 && (
-                    <Card className="bg-green-50 border-green-200">
-                      <CardContent className="pt-6">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-green-600" />
-                            <p className="text-sm font-medium text-green-900">
-                              {extractionProgress.extractedContacts.length} contacts extracted
-                            </p>
-                          </div>
-                          <div className="max-h-32 overflow-y-auto space-y-1 mt-3 border rounded p-2 bg-white">
-                            {extractionProgress.extractedContacts.slice(0, 5).map((contact, idx) => (
-                              <div key={idx} className="text-xs p-2 rounded border border-green-200 bg-green-50">
-                                <div className="font-medium">{contact.name}</div>
-                                <div className="text-muted-foreground">{contact.phone_number}</div>
-                              </div>
-                            ))}
-                            {extractionProgress.extractedContacts.length > 5 && (
-                              <p className="text-xs text-green-700 pt-2">
-                                +{extractionProgress.extractedContacts.length - 5} more contacts
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {!extractionProgress.isExtracting && extractionProgress.errors.length > 0 && (
-                    <Card className="bg-red-50 border-red-200">
-                      <CardContent className="pt-6">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-                          <div className="space-y-1">
-                            <p className="text-sm font-medium text-red-900">Extraction failed</p>
-                            {extractionProgress.errors.map((error, idx) => (
-                              <p key={idx} className="text-xs text-red-700">{error}</p>
-                            ))}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-xs">
-                    <p className="text-sm font-medium">Smart Extraction Features:</p>
-                    <ul className="text-muted-foreground space-y-1">
-                      <li>• Automatically detects phone numbers in any format</li>
-                      <li>• Works with organized or unorganized data</li>
-                      <li>• Supports Uganda format (0708... or +2567...)</li>
-                      <li>• Auto-generates names if missing</li>
-                    </ul>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsImportOpen(false)}>Cancel</Button>
-                  <Button 
-                    onClick={handleImportContacts} 
-                    disabled={loading || extractionProgress.extractedContacts.length === 0 || !importGroupId}
-                  >
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Import {extractionProgress.extractedContacts.length} Contacts
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <UserPlus className="h-4 w-4" />
-                  Add Contact
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Add New Contact</DialogTitle>
-                  <DialogDescription>Add a contact to your collection</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name *</Label>
-                      <Input 
-                        id="firstName" 
-                        placeholder="John" 
-                        value={contactForm.firstName}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, firstName: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input 
-                        id="lastName" 
-                        placeholder="Doe" 
-                        value={contactForm.lastName}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, lastName: e.target.value})}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number *</Label>
-                    <Input 
-                      id="phone" 
-                      type="tel" 
-                      placeholder="0708215305" 
-                      value={contactForm.phone}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, phone: e.target.value})}
-                    />
-                    <p className="text-xs text-muted-foreground">Auto-formats to +256</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="john@example.com" 
-                      value={contactForm.email}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, email: e.target.value})}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="group">Group *</Label>
-                    <Select value={contactForm.groupId} onValueChange={(value: string) => setContactForm({...contactForm, groupId: value})}>
-                      <SelectTrigger id="group">
-                        <SelectValue placeholder="Select a group" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groups.map((group: Group) => (
-                          <SelectItem key={group.id} value={group.id.toString()}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddContactOpen(false)}>Cancel</Button>
-                  <Button onClick={handleAddContact} disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Add Contact
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-
-        <TabsContent value="groups" className="space-y-6">
-          <Card className="border-border/50 shadow-none">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <FolderOpen className="h-5 w-5" />
-                    Contact Groups
-                  </CardTitle>
-                  <CardDescription>Organize contacts into groups</CardDescription>
-                </div>
-                <Dialog open={isCreateGroupOpen} onOpenChange={setIsCreateGroupOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="gap-2">
-                      <Plus className="h-4 w-4" />
-                      Create Group
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Create New Group</DialogTitle>
-                      <DialogDescription>Create a contact group</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="createGroupName">Group Name *</Label>
-                        <Input 
-                          id="createGroupName" 
-                          placeholder="e.g., VIP Customers" 
-                          value={createGroupForm.name}
-                          onChange={(e: ChangeEvent<HTMLInputElement>) => setCreateGroupForm({...createGroupForm, name: e.target.value})}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="createGroupDescription">Description</Label>
-                        <Textarea 
-                          id="createGroupDescription" 
-                          placeholder="Brief description..." 
-                          rows={3}
-                          value={createGroupForm.description}
-                          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setCreateGroupForm({...createGroupForm, description: e.target.value})}
-                        />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsCreateGroupOpen(false)}>Cancel</Button>
-                      <Button onClick={handleCreateGroup} disabled={loading}>
-                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Create Group
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
+        <div className="grid gap-4 md:grid-cols-4 mb-6">
+          <Card className="border-border/50 bg-card/50 backdrop-blur shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Contacts</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="mb-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search groups..."
-                    className="pl-9 bg-background/50 shadow-none"
-                    value={searchQuery}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {loading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : filteredGroups.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FolderOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No groups found</p>
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {filteredGroups.map((group: Group) => (
-                    <Card
-                      key={group.id}
-                      className="border-border/50 shadow-none bg-background/50 hover:bg-background/80 transition-colors"
-                    >
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1 flex-1">
-                            <CardTitle className="text-base">{group.name}</CardTitle>
-                            <CardDescription className="text-xs">
-                              {group.description || "No description"}
-                            </CardDescription>
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openViewGroupContactsDialog(group)}>
-                                <Users className="mr-2 h-4 w-4" />
-                                View Contacts
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openEditGroupDialog(group)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit Group
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-destructive"
-                                onClick={() => handleDeleteGroup(group)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Group & Contacts
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Contacts</span>
-                          <Badge variant="secondary" className="font-mono">
-                            {group.contact_count || 0}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Group ID</span>
-                          <span className="font-mono text-xs">#{group.id}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Created</span>
-                          <span className="text-xs">
-                            {new Date(group.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
+              <div className="text-2xl font-bold">{totalContacts}</div>
+              <p className="text-xs text-muted-foreground mt-1">All contacts</p>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="contacts" className="space-y-6">
-          <Card className="border-border/50 shadow-none">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>All Contacts</CardTitle>
-                  <CardDescription>View and manage your contacts</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  {selectedContactIds.size > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{selectedContactIds.size} selected</Badge>
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={handleBulkDeleteContacts}
-                        className="gap-1"
-                      >
-                        <Trash className="h-3 w-3" />
-                        Delete
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          setSelectedContactIds(new Set())
-                          setSelectAllContacts(false)
-                        }}
-                        className="gap-1"
-                      >
-                        <X className="h-3 w-3" />
-                        Clear
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
+          <Card className="border-border/50 bg-card/50 backdrop-blur shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Groups</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="mb-4 flex items-center gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <div className="text-2xl font-bold">{groups.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Contact groups</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 bg-card/50 backdrop-blur shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Active Contacts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{activeContacts}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {totalContacts > 0 ? Math.round((activeContacts/totalContacts)*100) : 0}% active
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 bg-card/50 backdrop-blur shadow-none">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Largest Group</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{largestGroup?.contact_count || 0}</div>
+              <p className="text-xs text-muted-foreground mt-1 truncate">
+                {largestGroup?.name || 'N/A'}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <div className="flex items-center justify-between">
+            <TabsList className="bg-muted/50">
+              <TabsTrigger value="groups">Groups</TabsTrigger>
+              <TabsTrigger value="contacts">All Contacts</TabsTrigger>
+            </TabsList>
+
+            <div className="flex gap-2">
+              <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="gap-2 bg-transparent">
+                    <Upload className="h-4 w-4" />
+                    Import
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Import Contacts</DialogTitle>
+                    <DialogDescription>
+                      Upload CSV, XLSX, or XLS file to import contacts
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Select Group</Label>
+                      <Select value={importGroupId} onValueChange={setImportGroupId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose a group" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {groups.map((group: Group) => (
+                            <SelectItem key={group.id} value={group.id.toString()}>
+                              {group.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Upload File</Label>
+                      <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                        <FileSpreadsheet className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                        <p className="text-sm font-medium mb-1">
+                          {selectedFile ? selectedFile.name : 'Click to select file'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          CSV, XLSX, or XLS format
+                        </p>
+                        <Input 
+                          type="file" 
+                          accept=".csv,.xlsx,.xls" 
+                          className="hidden" 
+                          id="file-upload" 
+                          onChange={handleFileUpload} 
+                        />
+                        <Label htmlFor="file-upload" className="cursor-pointer">
+                          <Button variant="outline" className="mt-2" asChild>
+                            <span>Select File</span>
+                          </Button>
+                        </Label>
+                      </div>
+                    </div>
+
+                    {extractionProgress.isExtracting && (
+                      <Card className="bg-blue-50 border-blue-200">
+                        <CardContent className="pt-6">
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                              <p className="text-sm font-medium text-blue-900">Extracting contacts...</p>
+                            </div>
+                            <Progress value={50} className="h-2" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {!extractionProgress.isExtracting && extractionProgress.extractedContacts.length > 0 && (
+                      <Card className="bg-green-50 border-green-200">
+                        <CardContent className="pt-6">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-5 w-5 text-green-600" />
+                              <p className="text-sm font-medium text-green-900">
+                                {extractionProgress.extractedContacts.length} contacts extracted
+                              </p>
+                            </div>
+                            <div className="max-h-32 overflow-y-auto space-y-1 mt-3 border rounded p-2 bg-white">
+                              {extractionProgress.extractedContacts.slice(0, 5).map((contact, idx) => (
+                                <div key={idx} className="text-xs p-2 rounded border border-green-200 bg-green-50">
+                                  <div className="font-medium">{contact.name}</div>
+                                  <div className="text-muted-foreground">{contact.phone_number}</div>
+                                </div>
+                              ))}
+                              {extractionProgress.extractedContacts.length > 5 && (
+                                <p className="text-xs text-green-700 pt-2">
+                                  +{extractionProgress.extractedContacts.length - 5} more contacts
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {!extractionProgress.isExtracting && extractionProgress.errors.length > 0 && (
+                      <Card className="bg-red-50 border-red-200">
+                        <CardContent className="pt-6">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium text-red-900">Extraction failed</p>
+                              {extractionProgress.errors.map((error, idx) => (
+                                <p key={idx} className="text-xs text-red-700">{error}</p>
+                              ))}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-xs">
+                      <p className="text-sm font-medium">Smart Extraction Features:</p>
+                      <ul className="text-muted-foreground space-y-1">
+                        <li>• Automatically detects phone numbers in any format</li>
+                        <li>• Works with organized or unorganized data</li>
+                        <li>• Supports Uganda format (0708... or +2567...)</li>
+                        <li>• Auto-generates names if missing</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsImportOpen(false)}>Cancel</Button>
+                    <Button 
+                      onClick={handleImportContacts} 
+                      disabled={loading || extractionProgress.extractedContacts.length === 0 || !importGroupId}
+                    >
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Import {extractionProgress.extractedContacts.length} Contacts
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    Add Contact
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Add New Contact</DialogTitle>
+                    <DialogDescription>Add a contact to your collection</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="firstName">First Name *</Label>
+                        <Input 
+                          id="firstName" 
+                          placeholder="John" 
+                          value={contactForm.firstName}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, firstName: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName">Last Name</Label>
+                        <Input 
+                          id="lastName" 
+                          placeholder="Doe" 
+                          value={contactForm.lastName}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, lastName: e.target.value})}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Phone Number *</Label>
+                      <Input 
+                        id="phone" 
+                        type="tel" 
+                        placeholder="0708215305" 
+                        value={contactForm.phone}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, phone: e.target.value})}
+                      />
+                      <p className="text-xs text-muted-foreground">Auto-formats to +256</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input 
+                        id="email" 
+                        type="email" 
+                        placeholder="john@example.com" 
+                        value={contactForm.email}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, email: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="group">Group *</Label>
+                      <Select value={contactForm.groupId} onValueChange={(value: string) => setContactForm({...contactForm, groupId: value})}>
+                        <SelectTrigger id="group">
+                          <SelectValue placeholder="Select a group" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {groups.map((group: Group) => (
+                            <SelectItem key={group.id} value={group.id.toString()}>
+                              {group.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddContactOpen(false)}>Cancel</Button>
+                    <Button onClick={handleAddContact} disabled={loading}>
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Add Contact
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <TabsContent value="groups" className="space-y-6">
+            <Card className="border-border/50 shadow-none">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FolderOpen className="h-5 w-5" />
+                      Contact Groups
+                    </CardTitle>
+                    <CardDescription>Organize contacts into groups</CardDescription>
+                  </div>
+                  <Dialog open={isCreateGroupOpen} onOpenChange={setIsCreateGroupOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Create Group
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Create New Group</DialogTitle>
+                        <DialogDescription>Create a contact group</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="createGroupName">Group Name *</Label>
+                          <Input 
+                            id="createGroupName" 
+                            placeholder="e.g., VIP Customers" 
+                            value={createGroupForm.name}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => setCreateGroupForm({...createGroupForm, name: e.target.value})}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="createGroupDescription">Description</Label>
+                          <Textarea 
+                            id="createGroupDescription" 
+                            placeholder="Brief description..." 
+                            rows={3}
+                            value={createGroupForm.description}
+                            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setCreateGroupForm({...createGroupForm, description: e.target.value})}
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsCreateGroupOpen(false)}>Cancel</Button>
+                        <Button onClick={handleCreateGroup} disabled={loading}>
+                          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Create Group
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search groups..."
+                      className="pl-9 bg-background/50 shadow-none"
+                      value={searchQuery}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredGroups.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FolderOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No groups found</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {filteredGroups.map((group: Group) => (
+                      <Card
+                        key={group.id}
+                        className="border-border/50 shadow-none bg-background/50 hover:bg-background/80 transition-colors"
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1 flex-1">
+                              <CardTitle className="text-base">{group.name}</CardTitle>
+                              <CardDescription className="text-xs">
+                                {group.description || "No description"}
+                              </CardDescription>
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openViewGroupContactsDialog(group)}>
+                                  <Users className="mr-2 h-4 w-4" />
+                                  View Contacts
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEditGroupDialog(group)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit Group
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteGroup(group)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete Group & Contacts
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Contacts</span>
+                            <Badge variant="secondary" className="font-mono">
+                              {group.contact_count || 0}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Group ID</span>
+                            <span className="font-mono text-xs">#{group.id}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Created</span>
+                            <span className="text-xs">
+                              {new Date(group.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="contacts" className="space-y-6">
+            <Card className="border-border/50 shadow-none">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>All Contacts</CardTitle>
+                    <CardDescription>View and manage your contacts</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selectedContactIds.size > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{selectedContactIds.size} selected</Badge>
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={handleBulkDeleteContacts}
+                          className="gap-1"
+                        >
+                          <Trash className="h-3 w-3" />
+                          Delete
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedContactIds(new Set())
+                            setSelectAllContacts(false)
+                          }}
+                          className="gap-1"
+                        >
+                          <X className="h-3 w-3" />
+                          Clear
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 flex items-center gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input 
+                      placeholder="Search contacts..." 
+                      className="pl-9 bg-background/50" 
+                      value={contactSearchQuery}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setContactSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  {filteredContacts.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleSelectAllContacts}
+                      className="gap-2 whitespace-nowrap"
+                    >
+                      <div className="h-4 w-4 border rounded flex items-center justify-center">
+                        {selectAllContacts && <div className="h-2 w-2 bg-primary rounded-sm" />}
+                      </div>
+                      {selectAllContacts ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  )}
+                </div>
+
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredContacts.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <UserPlus className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No contacts found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredContacts.map((contact: Contact) => (
+                      <Card
+                        key={contact.id}
+                        className="border-border/50 shadow-none bg-background/50 hover:bg-background/80 transition-colors"
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-4 flex-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 mt-1"
+                                onClick={() => toggleContactSelection(contact.id)}
+                              >
+                                <div className="h-4 w-4 border rounded flex items-center justify-center">
+                                  {selectedContactIds.has(contact.id) && <div className="h-2 w-2 bg-primary rounded-sm" />}
+                                </div>
+                              </Button>
+                              <Avatar className="h-12 w-12">
+                                <AvatarFallback className="bg-primary/10 text-primary">
+                                  {(contact.name || "?")
+                                    .split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                    .slice(0, 2)}
+                                </AvatarFallback>
+                              </Avatar>
+
+                              <div className="flex-1 space-y-3">
+                                <div>
+                                  <h3 className="font-semibold text-base">{contact.name || "Unknown"}</h3>
+                                  <p className="text-sm text-muted-foreground">ID: {contact.id}</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                    <span className="truncate">{contact.phone_number || "N/A"}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                    <span className="truncate">{contact.email || "No email"}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                    <span className="text-muted-foreground">
+                                      {new Date(contact.created_at).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant={contact.is_active ? "default" : "secondary"} className="text-xs">
+                                      {contact.is_active ? "Active" : "Inactive"}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditContactDialog(contact)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit Contact
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteContact(contact)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete Contact
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Edit Group Dialog */}
+        <Dialog open={isEditGroupOpen} onOpenChange={setIsEditGroupOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Group</DialogTitle>
+              <DialogDescription>Update group information</DialogDescription>
+            </DialogHeader>
+            {editingGroup && (
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editGroupName">Group Name *</Label>
                   <Input 
-                    placeholder="Search contacts..." 
-                    className="pl-9 bg-background/50" 
-                    value={contactSearchQuery}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setContactSearchQuery(e.target.value)}
+                    id="editGroupName" 
+                    placeholder="e.g., VIP Customers" 
+                    value={editGroupForm.name}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEditGroupForm({...editGroupForm, name: e.target.value})}
                   />
                 </div>
-                {filteredContacts.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={toggleSelectAllContacts}
-                    className="gap-2 whitespace-nowrap"
-                  >
-                    <div className="h-4 w-4 border rounded flex items-center justify-center">
-                      {selectAllContacts && <div className="h-2 w-2 bg-primary rounded-sm" />}
-                    </div>
-                    {selectAllContacts ? 'Deselect All' : 'Select All'}
-                  </Button>
-                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="editGroupDescription">Description</Label>
+                  <Textarea 
+                    id="editGroupDescription" 
+                    placeholder="Brief description..." 
+                    rows={3}
+                    value={editGroupForm.description}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEditGroupForm({...editGroupForm, description: e.target.value})}
+                  />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditGroupOpen(false)}>Cancel</Button>
+              <Button onClick={handleEditGroup} disabled={loading || !editingGroup}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Group
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Contact Dialog */}
+        <Dialog open={isEditContactOpen} onOpenChange={setIsEditContactOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit Contact</DialogTitle>
+              <DialogDescription>Update contact information</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editFirstName">First Name *</Label>
+                  <Input 
+                    id="editFirstName" 
+                    placeholder="John" 
+                    value={contactForm.firstName}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, firstName: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editLastName">Last Name</Label>
+                  <Input 
+                    id="editLastName" 
+                    placeholder="Doe" 
+                    value={contactForm.lastName}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, lastName: e.target.value})}
+                  />
+                </div>
               </div>
 
-              {loading ? (
+              <div className="space-y-2">
+                <Label htmlFor="editPhone">Phone Number *</Label>
+                <Input 
+                  id="editPhone" 
+                  type="tel" 
+                  placeholder="0708215305" 
+                  value={contactForm.phone}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, phone: e.target.value})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editEmail">Email</Label>
+                <Input 
+                  id="editEmail" 
+                  type="email" 
+                  placeholder="john@example.com" 
+                  value={contactForm.email}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, email: e.target.value})}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditContactOpen(false)}>Cancel</Button>
+              <Button onClick={handleEditContact} disabled={loading}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Contact
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* View Group Contacts Dialog */}
+        <Dialog open={isViewGroupContactsOpen} onOpenChange={setIsViewGroupContactsOpen}>
+          <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                {selectedGroupForView?.name || "Group"} Contacts
+              </DialogTitle>
+              <DialogDescription>
+                Manage contacts in this group ({groupContacts.length} contacts)
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              {loadingGroupContacts ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : filteredContacts.length === 0 ? (
+              ) : groupContacts.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <UserPlus className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No contacts found</p>
+                  <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No contacts in this group</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {filteredContacts.map((contact: Contact) => (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {groupContacts.map((contact: Contact) => (
                     <Card
                       key={contact.id}
-                      className="border-border/50 shadow-none bg-background/50 hover:bg-background/80 transition-colors"
+                      className="border-border/50 bg-background/50 shadow-none"
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-4 flex-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 mt-1"
-                              onClick={() => toggleContactSelection(contact.id)}
-                            >
-                              <div className="h-4 w-4 border rounded flex items-center justify-center">
-                                {selectedContactIds.has(contact.id) && <div className="h-2 w-2 bg-primary rounded-sm" />}
-                              </div>
-                            </Button>
-                            <Avatar className="h-12 w-12">
-                              <AvatarFallback className="bg-primary/10 text-primary">
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            <Avatar className="h-10 w-10">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
                                 {(contact.name || "?")
                                   .split(" ")
                                   .map((n: string) => n[0])
@@ -1528,241 +1748,43 @@ export default function ContactCollectionPage() {
                                   .slice(0, 2)}
                               </AvatarFallback>
                             </Avatar>
-
-                            <div className="flex-1 space-y-3">
-                              <div>
-                                <h3 className="font-semibold text-base">{contact.name || "Unknown"}</h3>
-                                <p className="text-sm text-muted-foreground">ID: {contact.id}</p>
-                              </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                <div className="flex items-center gap-2">
-                                  <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                  <span className="truncate">{contact.phone_number || "N/A"}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                  <span className="truncate">{contact.email || "No email"}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                  <span className="text-muted-foreground">
-                                    {new Date(contact.created_at).toLocaleDateString()}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Badge variant={contact.is_active ? "default" : "secondary"} className="text-xs">
-                                    {contact.is_active ? "Active" : "Inactive"}
-                                  </Badge>
-                                </div>
-                              </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{contact.name || "Unknown"}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {contact.phone_number || "N/A"}
+                              </p>
                             </div>
                           </div>
-
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditContactDialog(contact)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit Contact
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-destructive"
-                                onClick={() => handleDeleteContact(contact)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Contact
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveFromGroup(selectedGroupForView!.id, contact.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Edit Group Dialog */}
-      <Dialog open={isEditGroupOpen} onOpenChange={setIsEditGroupOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Group</DialogTitle>
-            <DialogDescription>Update group information</DialogDescription>
-          </DialogHeader>
-          {editingGroup && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="editGroupName">Group Name *</Label>
-                <Input 
-                  id="editGroupName" 
-                  placeholder="e.g., VIP Customers" 
-                  value={editGroupForm.name}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEditGroupForm({...editGroupForm, name: e.target.value})}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="editGroupDescription">Description</Label>
-                <Textarea 
-                  id="editGroupDescription" 
-                  placeholder="Brief description..." 
-                  rows={3}
-                  value={editGroupForm.description}
-                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEditGroupForm({...editGroupForm, description: e.target.value})}
-                />
-              </div>
             </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditGroupOpen(false)}>Cancel</Button>
-            <Button onClick={handleEditGroup} disabled={loading || !editingGroup}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Update Group
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsViewGroupContactsOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </PageLayout>
 
-      {/* Edit Contact Dialog */}
-      <Dialog open={isEditContactOpen} onOpenChange={setIsEditContactOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Edit Contact</DialogTitle>
-            <DialogDescription>Update contact information</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="editFirstName">First Name *</Label>
-                <Input 
-                  id="editFirstName" 
-                  placeholder="John" 
-                  value={contactForm.firstName}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, firstName: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="editLastName">Last Name</Label>
-                <Input 
-                  id="editLastName" 
-                  placeholder="Doe" 
-                  value={contactForm.lastName}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, lastName: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="editPhone">Phone Number *</Label>
-              <Input 
-                id="editPhone" 
-                type="tel" 
-                placeholder="0708215305" 
-                value={contactForm.phone}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, phone: e.target.value})}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="editEmail">Email</Label>
-              <Input 
-                id="editEmail" 
-                type="email" 
-                placeholder="john@example.com" 
-                value={contactForm.email}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setContactForm({...contactForm, email: e.target.value})}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditContactOpen(false)}>Cancel</Button>
-            <Button onClick={handleEditContact} disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Update Contact
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Group Contacts Dialog */}
-      <Dialog open={isViewGroupContactsOpen} onOpenChange={setIsViewGroupContactsOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {selectedGroupForView?.name || "Group"} Contacts
-            </DialogTitle>
-            <DialogDescription>
-              Manage contacts in this group ({groupContacts.length} contacts)
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            {loadingGroupContacts ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : groupContacts.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No contacts in this group</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {groupContacts.map((contact: Contact) => (
-                  <Card
-                    key={contact.id}
-                    className="border-border/50 bg-background/50 shadow-none"
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 flex-1">
-                          <Avatar className="h-10 w-10">
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                              {(contact.name || "?")
-                                .split(" ")
-                                .map((n: string) => n[0])
-                                .join("")
-                                .toUpperCase()
-                                .slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{contact.name || "Unknown"}</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {contact.phone_number || "N/A"}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleRemoveFromGroup(selectedGroupForView!.id, contact.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsViewGroupContactsOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </PageLayout>
+      {/* Global Delete Overlay */}
+      {deleting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <Loader2 className="h-12 w-12 animate-spin text-white" />
+        </div>
+      )}
+    </>
   )
 }
