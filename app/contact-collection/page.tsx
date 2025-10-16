@@ -40,7 +40,9 @@ import {
   Loader2,
   Users,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Trash,
+  X
 } from "lucide-react"
 import { useState, useEffect, ChangeEvent } from "react"
 import { useToast } from "@/contexts/toast-context"
@@ -283,6 +285,10 @@ export default function ContactCollectionPage() {
   })
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
 
+  // All contacts selection
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<number>>(new Set())
+  const [selectAllContacts, setSelectAllContacts] = useState<boolean>(false)
+
   const { getToken } = useAuth()
 
   // Fetch groups with contact count
@@ -434,7 +440,7 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Create group - NO state updates during close
+  // Create group
   const handleCreateGroup = async (): Promise<void> => {
     if (!createGroupForm.name) {
       showToast("Validation Error", "Group name is required", "warning")
@@ -465,10 +471,9 @@ export default function ContactCollectionPage() {
       if (response.ok) {
         showToast("Success", "Group created successfully", "success")
         setIsCreateGroupOpen(false)
-        // Wait for dialog to close before resetting
         setTimeout(() => {
           setCreateGroupForm({ name: "", description: "" })
-          fetchGroups()
+          window.location.reload()
         }, 300)
       } else {
         const error: { detail?: string } = await response.json()
@@ -482,7 +487,7 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Edit group - NO state updates during close
+  // Edit group
   const handleEditGroup = async (): Promise<void> => {
     if (!editGroupForm.name || !editingGroup) {
       showToast("Validation Error", "Group name is required", "warning")
@@ -513,11 +518,9 @@ export default function ContactCollectionPage() {
       if (response.ok) {
         showToast("Success", "Group updated successfully", "success")
         setIsEditGroupOpen(false)
-        // Wait for dialog to close before resetting and reloading
         setTimeout(() => {
           setEditingGroup(null)
           setEditGroupForm({ name: "", description: "" })
-          // Full page reload to ensure fresh data
           window.location.reload()
         }, 300)
       } else {
@@ -582,8 +585,7 @@ export default function ContactCollectionPage() {
           setIsAddContactOpen(false)
           setTimeout(() => {
             setContactForm({ firstName: "", lastName: "", phone: "", email: "", groupId: "" })
-            fetchContacts()
-            fetchGroups()
+            window.location.reload()
           }, 300)
         } else {
           throw new Error("Failed to add contact to group")
@@ -639,7 +641,7 @@ export default function ContactCollectionPage() {
         setTimeout(() => {
           setEditingContact(null)
           setContactForm({ firstName: "", lastName: "", phone: "", email: "", groupId: "" })
-          fetchContacts()
+          window.location.reload()
         }, 300)
       } else {
         throw new Error("Failed to update contact")
@@ -753,8 +755,7 @@ export default function ContactCollectionPage() {
             extractedContacts: [],
             errors: []
           })
-          fetchContacts()
-          fetchGroups()
+          window.location.reload()
         }, 300)
       } else {
         throw new Error("Failed to import contacts")
@@ -766,9 +767,9 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Delete group
+  // Delete group - cascade delete contacts
   const handleDeleteGroup = async (group: Group): Promise<void> => {
-    if (!window.confirm(`Are you sure you want to delete "${group.name}"?`)) {
+    if (!window.confirm(`Delete "${group.name}" and all its ${group.contact_count} contacts? This action cannot be undone.`)) {
       return
     }
 
@@ -779,6 +780,27 @@ export default function ContactCollectionPage() {
         return
       }
 
+      // Fetch group contacts first
+      const groupContactsResp = await fetch(`${API_BASE_URL}/groups/${group.id}/contacts?skip=0&limit=1000`, {
+        headers: { 
+          'accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const groupContactsData: Contact[] = groupContactsResp.ok ? await groupContactsResp.json() : []
+
+      // Delete each contact
+      for (const contact of groupContactsData) {
+        await fetch(`${API_BASE_URL}/contacts/${contact.id}`, {
+          method: 'DELETE',
+          headers: { 
+            'accept': '*/*',
+            'Authorization': `Bearer ${token}`
+          }
+        })
+      }
+
+      // Then delete the group
       const response = await fetch(`${API_BASE_URL}/groups/${group.id}`, {
         method: 'DELETE',
         headers: { 
@@ -788,13 +810,13 @@ export default function ContactCollectionPage() {
       })
 
       if (response.ok) {
-        showToast("Success", "Group deleted successfully", "success")
-        fetchGroups()
+        showToast("Success", "Group and contacts deleted successfully", "success")
+        window.location.reload()
       } else {
         throw new Error("Failed to delete group")
       }
     } catch (error) {
-      showToast("Error", "Failed to delete group", "error")
+      showToast("Error", "Failed to delete group and contacts", "error")
     }
   }
 
@@ -821,15 +843,51 @@ export default function ContactCollectionPage() {
 
       if (response.ok) {
         showToast("Success", "Contact deleted successfully", "success")
-        fetchContacts()
-        if (isViewGroupContactsOpen && selectedGroupForView) {
-          fetchGroupContacts(selectedGroupForView.id)
-        }
+        window.location.reload()
       } else {
         throw new Error("Failed to delete contact")
       }
     } catch (error) {
       showToast("Error", "Failed to delete contact", "error")
+    }
+  }
+
+  // Bulk delete selected contacts
+  const handleBulkDeleteContacts = async (): Promise<void> => {
+    if (selectedContactIds.size === 0) {
+      showToast("Warning", "No contacts selected", "warning")
+      return
+    }
+
+    if (!window.confirm(`Delete ${selectedContactIds.size} selected contacts? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
+
+      let deleted = 0
+      for (const id of selectedContactIds) {
+        const response = await fetch(`${API_BASE_URL}/contacts/${id}`, {
+          method: 'DELETE',
+          headers: { 
+            'accept': '*/*',
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) deleted++
+      }
+
+      showToast("Success", `Deleted ${deleted} contacts`, "success")
+      setSelectedContactIds(new Set())
+      setSelectAllContacts(false)
+      window.location.reload()
+    } catch (error) {
+      showToast("Error", "Failed to delete contacts", "error")
     }
   }
 
@@ -895,6 +953,28 @@ export default function ContactCollectionPage() {
       groupId: ""
     })
     setIsEditContactOpen(true)
+  }
+
+  // Toggle contact selection
+  const toggleContactSelection = (contactId: number) => {
+    const newSelected = new Set(selectedContactIds)
+    if (newSelected.has(contactId)) {
+      newSelected.delete(contactId)
+    } else {
+      newSelected.add(contactId)
+    }
+    setSelectedContactIds(newSelected)
+    setSelectAllContacts(newSelected.size === filteredContacts.length && filteredContacts.length > 0)
+  }
+
+  // Toggle select all
+  const toggleSelectAllContacts = () => {
+    if (selectAllContacts) {
+      setSelectedContactIds(new Set())
+    } else {
+      setSelectedContactIds(new Set(filteredContacts.map(c => c.id)))
+    }
+    setSelectAllContacts(!selectAllContacts)
   }
 
   useEffect(() => {
@@ -985,7 +1065,7 @@ export default function ContactCollectionPage() {
                   Import
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
+              <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Import Contacts</DialogTitle>
                   <DialogDescription>
@@ -1011,8 +1091,8 @@ export default function ContactCollectionPage() {
 
                   <div className="space-y-2">
                     <Label>Upload File</Label>
-                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
-                      <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                    <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                      <FileSpreadsheet className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
                       <p className="text-sm font-medium mb-1">
                         {selectedFile ? selectedFile.name : 'Click to select file'}
                       </p>
@@ -1058,9 +1138,9 @@ export default function ContactCollectionPage() {
                               {extractionProgress.extractedContacts.length} contacts extracted
                             </p>
                           </div>
-                          <div className="max-h-40 overflow-y-auto space-y-1 mt-3">
+                          <div className="max-h-32 overflow-y-auto space-y-1 mt-3 border rounded p-2 bg-white">
                             {extractionProgress.extractedContacts.slice(0, 5).map((contact, idx) => (
-                              <div key={idx} className="text-xs bg-white p-2 rounded border border-green-200">
+                              <div key={idx} className="text-xs p-2 rounded border border-green-200 bg-green-50">
                                 <div className="font-medium">{contact.name}</div>
                                 <div className="text-muted-foreground">{contact.phone_number}</div>
                               </div>
@@ -1092,9 +1172,9 @@ export default function ContactCollectionPage() {
                     </Card>
                   )}
 
-                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                    <p className="text-sm font-medium">Smart Extraction:</p>
-                    <ul className="text-xs text-muted-foreground space-y-1">
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-xs">
+                    <p className="text-sm font-medium">Smart Extraction Features:</p>
+                    <ul className="text-muted-foreground space-y-1">
                       <li>• Automatically detects phone numbers in any format</li>
                       <li>• Works with organized or unorganized data</li>
                       <li>• Supports Uganda format (0708... or +2567...)</li>
@@ -1313,7 +1393,7 @@ export default function ContactCollectionPage() {
                                 onClick={() => handleDeleteGroup(group)}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Group
+                                Delete Group & Contacts
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1353,11 +1433,39 @@ export default function ContactCollectionPage() {
                   <CardTitle>All Contacts</CardTitle>
                   <CardDescription>View and manage your contacts</CardDescription>
                 </div>
+                <div className="flex items-center gap-2">
+                  {selectedContactIds.size > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{selectedContactIds.size} selected</Badge>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={handleBulkDeleteContacts}
+                        className="gap-1"
+                      >
+                        <Trash className="h-3 w-3" />
+                        Delete
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setSelectedContactIds(new Set())
+                          setSelectAllContacts(false)
+                        }}
+                        className="gap-1"
+                      >
+                        <X className="h-3 w-3" />
+                        Clear
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="mb-4">
-                <div className="relative">
+              <div className="mb-4 flex items-center gap-4">
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input 
                     placeholder="Search contacts..." 
@@ -1366,6 +1474,19 @@ export default function ContactCollectionPage() {
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setContactSearchQuery(e.target.value)}
                   />
                 </div>
+                {filteredContacts.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleSelectAllContacts}
+                    className="gap-2 whitespace-nowrap"
+                  >
+                    <div className="h-4 w-4 border rounded flex items-center justify-center">
+                      {selectAllContacts && <div className="h-2 w-2 bg-primary rounded-sm" />}
+                    </div>
+                    {selectAllContacts ? 'Deselect All' : 'Select All'}
+                  </Button>
+                )}
               </div>
 
               {loading ? (
@@ -1387,6 +1508,16 @@ export default function ContactCollectionPage() {
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-4 flex-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 mt-1"
+                              onClick={() => toggleContactSelection(contact.id)}
+                            >
+                              <div className="h-4 w-4 border rounded flex items-center justify-center">
+                                {selectedContactIds.has(contact.id) && <div className="h-2 w-2 bg-primary rounded-sm" />}
+                              </div>
+                            </Button>
                             <Avatar className="h-12 w-12">
                               <AvatarFallback className="bg-primary/10 text-primary">
                                 {(contact.name || "?")
@@ -1459,7 +1590,7 @@ export default function ContactCollectionPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Group Dialog - SEPARATE STATE */}
+      {/* Edit Group Dialog */}
       <Dialog open={isEditGroupOpen} onOpenChange={setIsEditGroupOpen}>
         <DialogContent>
           <DialogHeader>
