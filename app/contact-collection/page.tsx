@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -24,7 +25,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import {
   Calendar,
-  Download,
   Edit,
   FileSpreadsheet,
   FolderOpen,
@@ -33,14 +33,15 @@ import {
   Phone,
   Plus,
   Search,
-  Tag,
   Trash2,
   Upload,
   UserPlus,
   Loader2,
   Users,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  X,
+  RefreshCw
 } from "lucide-react"
 import { useState, useEffect, ChangeEvent } from "react"
 import { useToast } from "@/contexts/toast-context"
@@ -49,7 +50,6 @@ import * as XLSX from 'xlsx'
 
 const API_BASE_URL = "https://luco-backend.onrender.com/api/v1"
 
-// Type Definitions
 interface Group {
   id: number
   user_id: string
@@ -106,33 +106,33 @@ interface ExtractionProgress {
   errors: string[]
 }
 
-// Utility function to format phone numbers to UG format
+interface DeleteProgress {
+  isDeleting: boolean
+  current: number
+  total: number
+  message: string
+}
+
 const formatPhoneNumberUG = (phone: string): string => {
   if (!phone) return ""
   let cleaned = phone.replace(/\D/g, '')
-
   if (cleaned.startsWith('0')) {
     cleaned = '256' + cleaned.slice(1)
   }
-
   if (!cleaned.startsWith('256')) {
     cleaned = '256' + cleaned
   }
-
   return '+' + cleaned
 }
 
-// Extract phone numbers from any text
 const extractPhoneNumbers = (text: string): string[] => {
   const phoneRegex = /(?:\+?256|0)?[7][0-9]{8}/g
   const matches = text.match(phoneRegex) || []
   return [...new Set(matches.map(formatPhoneNumberUG))]
 }
 
-// Parse file and extract contacts
 const parseFile = async (file: File): Promise<ContactToImport[]> => {
   const extension = file.name.split('.').pop()?.toLowerCase()
-  
   if (extension === 'csv') {
     return parseCSV(file)
   } else if (extension === 'xlsx' || extension === 'xls') {
@@ -145,18 +145,12 @@ const parseFile = async (file: File): Promise<ContactToImport[]> => {
 const parseCSV = async (file: File): Promise<ContactToImport[]> => {
   const text = await file.text()
   const lines = text.split('\n').filter(line => line.trim())
-  
   if (lines.length === 0) return []
-  
   const contacts: ContactToImport[] = []
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
-  
   for (let i = 1; i < lines.length; i++) {
     const values = lines[i].split(',').map(v => v.trim())
-    
-    // Try structured parsing first
     let name = '', phone = '', email = ''
-    
     headers.forEach((header, index) => {
       const value = values[index] || ''
       if (header.includes('name')) name = value
@@ -164,19 +158,14 @@ const parseCSV = async (file: File): Promise<ContactToImport[]> => {
         phone = value
       } else if (header.includes('email')) email = value
     })
-    
-    // If no structured phone found, extract from all text
     if (!phone) {
       const allText = values.join(' ')
       const phones = extractPhoneNumbers(allText)
       if (phones.length > 0) phone = phones[0]
     }
-    
-    // Generate name if missing
     if (!name && phone) {
       name = `Contact ${i}`
     }
-    
     if (phone) {
       contacts.push({
         name: name || `Contact ${i}`,
@@ -185,7 +174,6 @@ const parseCSV = async (file: File): Promise<ContactToImport[]> => {
       })
     }
   }
-  
   return contacts
 }
 
@@ -195,17 +183,12 @@ const parseExcel = async (file: File): Promise<ContactToImport[]> => {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
   const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
-  
   if (jsonData.length === 0) return []
-  
   const contacts: ContactToImport[] = []
   const headers = jsonData[0].map((h: any) => String(h || '').toLowerCase())
-  
   for (let i = 1; i < jsonData.length; i++) {
     const row = jsonData[i]
     let name = '', phone = '', email = ''
-    
-    // Try structured parsing
     headers.forEach((header, index) => {
       const value = String(row[index] || '').trim()
       if (header.includes('name')) name = value
@@ -213,18 +196,14 @@ const parseExcel = async (file: File): Promise<ContactToImport[]> => {
         phone = value
       } else if (header.includes('email')) email = value
     })
-    
-    // Extract phones from all cells if no structured phone found
     if (!phone) {
       const allText = row.map(cell => String(cell || '')).join(' ')
       const phones = extractPhoneNumbers(allText)
       if (phones.length > 0) phone = phones[0]
     }
-    
     if (!name && phone) {
       name = `Contact ${i}`
     }
-    
     if (phone) {
       contacts.push({
         name: name || `Contact ${i}`,
@@ -233,7 +212,6 @@ const parseExcel = async (file: File): Promise<ContactToImport[]> => {
       })
     }
   }
-  
   return contacts
 }
 
@@ -244,23 +222,20 @@ export default function ContactCollectionPage() {
   const [groups, setGroups] = useState<Group[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState<boolean>(false)
-  
-  // Separate dialog states
+  const [selectedContacts, setSelectedContacts] = useState<Set<number>>(new Set())
+  const [selectAllChecked, setSelectAllChecked] = useState<boolean>(false)
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState<boolean>(false)
   const [isEditGroupOpen, setIsEditGroupOpen] = useState<boolean>(false)
   const [isAddContactOpen, setIsAddContactOpen] = useState<boolean>(false)
   const [isEditContactOpen, setIsEditContactOpen] = useState<boolean>(false)
   const [isImportOpen, setIsImportOpen] = useState<boolean>(false)
   const [isViewGroupContactsOpen, setIsViewGroupContactsOpen] = useState<boolean>(false)
-  
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [importGroupId, setImportGroupId] = useState<string>("")
   const [selectedGroupForView, setSelectedGroupForView] = useState<Group | null>(null)
   const [groupContacts, setGroupContacts] = useState<Contact[]>([])
   const [loadingGroupContacts, setLoadingGroupContacts] = useState<boolean>(false)
   const { showToast } = useToast()
-  
-  // Extraction progress
   const [extractionProgress, setExtractionProgress] = useState<ExtractionProgress>({
     isExtracting: false,
     currentRow: 0,
@@ -268,12 +243,15 @@ export default function ContactCollectionPage() {
     extractedContacts: [],
     errors: []
   })
-
-  // SEPARATE form states for create and edit
+  const [deleteProgress, setDeleteProgress] = useState<DeleteProgress>({
+    isDeleting: false,
+    current: 0,
+    total: 0,
+    message: ''
+  })
   const [createGroupForm, setCreateGroupForm] = useState<GroupFormData>({ name: "", description: "" })
   const [editGroupForm, setEditGroupForm] = useState<GroupFormData>({ name: "", description: "" })
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
-  
   const [contactForm, setContactForm] = useState<ContactFormData>({
     firstName: "",
     lastName: "",
@@ -282,19 +260,20 @@ export default function ContactCollectionPage() {
     groupId: ""
   })
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
-
   const { getToken } = useAuth()
 
-  // Fetch groups with contact count
+  const reloadData = () => {
+    fetchGroups()
+    fetchContacts()
+  }
+
   const fetchGroups = async (retries = 3): Promise<void> => {
     for (let i = 0; i < retries; i++) {
       try {
         setLoading(true)
         await new Promise(resolve => setTimeout(resolve, 500))
-
         const token = await getToken()
         if (!token) {
-          console.error("No authentication token available, attempt:", i + 1)
           if (i < retries - 1) {
             await new Promise(resolve => setTimeout(resolve, 1000))
             continue
@@ -302,18 +281,15 @@ export default function ContactCollectionPage() {
           showToast("Error", "Authentication required", "error")
           return
         }
-
         const response = await fetch(`${API_BASE_URL}/groups/?skip=0&limit=100`, {
           headers: { 
             'accept': 'application/json',
             'Authorization': `Bearer ${token}`
           }
         })
-
         if (!response.ok) {
           throw new Error(`Failed to fetch groups: ${response.status}`)
         }
-
         const data: Group[] = await response.json()
         const groupsWithDetails = await Promise.all(
           data.map(async (group: Group): Promise<Group> => {
@@ -325,17 +301,11 @@ export default function ContactCollectionPage() {
                 }
               })
               if (!detailResponse.ok) {
-                if (detailResponse.status === 401 || detailResponse.status === 403) {
-                  throw new Error(`Authentication failed`)
-                }
                 return { ...group, contact_count: 0 }
               }
               const details: Group & { contact_count: number } = await detailResponse.json()
               return { ...group, contact_count: details.contact_count || 0 }
             } catch (err) {
-              if (err instanceof Error && (err.message.includes('401') || err.message.includes('403'))) {
-                throw err
-              }
               return { ...group, contact_count: 0 }
             }
           })
@@ -344,7 +314,6 @@ export default function ContactCollectionPage() {
         break
       } catch (error) {
         if (i === retries - 1) {
-          console.error('Error fetching groups:', error)
           showToast("Error", "Failed to fetch groups", "error")
         }
       } finally {
@@ -353,13 +322,11 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Fetch contacts
   const fetchContacts = async (retries = 3): Promise<void> => {
     for (let i = 0; i < retries; i++) {
       try {
         setLoading(true)
         await new Promise(resolve => setTimeout(resolve, 500))
-
         const token = await getToken()
         if (!token) {
           if (i < retries - 1) {
@@ -369,18 +336,15 @@ export default function ContactCollectionPage() {
           showToast("Error", "Authentication required", "error")
           return
         }
-
         const response = await fetch(`${API_BASE_URL}/contacts/?skip=0&limit=100&is_active=true`, {
           headers: { 
             'accept': 'application/json',
             'Authorization': `Bearer ${token}`
           }
         })
-
         if (!response.ok) {
           throw new Error(`Failed to fetch contacts: ${response.status}`)
         }
-
         const data: Contact[] = await response.json()
         setContacts(data || [])
         break
@@ -394,13 +358,11 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Fetch contacts for a specific group
   const fetchGroupContacts = async (groupId: number, retries = 3): Promise<void> => {
     for (let i = 0; i < retries; i++) {
       try {
         setLoadingGroupContacts(true)
         await new Promise(resolve => setTimeout(resolve, 500))
-
         const token = await getToken()
         if (!token) {
           if (i < retries - 1) {
@@ -409,18 +371,15 @@ export default function ContactCollectionPage() {
           }
           return
         }
-
         const response = await fetch(`${API_BASE_URL}/groups/${groupId}/contacts?skip=0&limit=100`, {
           headers: { 
             'accept': 'application/json',
             'Authorization': `Bearer ${token}`
           }
         })
-
         if (!response.ok) {
           throw new Error(`Failed to fetch group contacts`)
         }
-
         const data: Contact[] = await response.json()
         setGroupContacts(data || [])
         break
@@ -434,13 +393,11 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Create group - NO state updates during close
   const handleCreateGroup = async (): Promise<void> => {
     if (!createGroupForm.name) {
       showToast("Validation Error", "Group name is required", "warning")
       return
     }
-
     try {
       setLoading(true)
       const token = await getToken()
@@ -448,7 +405,6 @@ export default function ContactCollectionPage() {
         showToast("Error", "Authentication required", "error")
         return
       }
-
       const response = await fetch(`${API_BASE_URL}/groups/`, {
         method: 'POST',
         headers: {
@@ -461,14 +417,12 @@ export default function ContactCollectionPage() {
           description: createGroupForm.description || ""
         })
       })
-
       if (response.ok) {
         showToast("Success", "Group created successfully", "success")
         setIsCreateGroupOpen(false)
-        // Wait for dialog to close before resetting
         setTimeout(() => {
           setCreateGroupForm({ name: "", description: "" })
-          fetchGroups()
+          reloadData()
         }, 300)
       } else {
         const error: { detail?: string } = await response.json()
@@ -482,13 +436,11 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Edit group - NO state updates during close
   const handleEditGroup = async (): Promise<void> => {
     if (!editGroupForm.name || !editingGroup) {
       showToast("Validation Error", "Group name is required", "warning")
       return
     }
-
     try {
       setLoading(true)
       const token = await getToken()
@@ -496,7 +448,6 @@ export default function ContactCollectionPage() {
         showToast("Error", "Authentication required", "error")
         return
       }
-
       const response = await fetch(`${API_BASE_URL}/groups/${editingGroup.id}`, {
         method: 'PUT',
         headers: {
@@ -509,16 +460,13 @@ export default function ContactCollectionPage() {
           description: editGroupForm.description || ""
         })
       })
-
       if (response.ok) {
         showToast("Success", "Group updated successfully", "success")
         setIsEditGroupOpen(false)
-        // Wait for dialog to close before resetting and reloading
         setTimeout(() => {
           setEditingGroup(null)
           setEditGroupForm({ name: "", description: "" })
-          // Full page reload to ensure fresh data
-          window.location.reload()
+          reloadData()
         }, 300)
       } else {
         throw new Error("Failed to update group")
@@ -530,13 +478,11 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Add contact
   const handleAddContact = async (): Promise<void> => {
     if (!contactForm.firstName || !contactForm.phone || !contactForm.groupId) {
       showToast("Validation Error", "Name, phone, and group are required", "warning")
       return
     }
-
     try {
       setLoading(true)
       const token = await getToken()
@@ -544,10 +490,8 @@ export default function ContactCollectionPage() {
         showToast("Error", "Authentication required", "error")
         return
       }
-
       const formattedPhone = formatPhoneNumberUG(contactForm.phone)
       const fullName = `${contactForm.firstName} ${contactForm.lastName}`.trim()
-
       const response = await fetch(`${API_BASE_URL}/contacts/`, {
         method: 'POST',
         headers: {
@@ -561,10 +505,8 @@ export default function ContactCollectionPage() {
           email: contactForm.email || ""
         })
       })
-
       if (response.ok) {
         const newContact: Contact = await response.json()
-
         const groupResponse = await fetch(`${API_BASE_URL}/groups/${contactForm.groupId}/contacts`, {
           method: 'POST',
           headers: {
@@ -576,14 +518,12 @@ export default function ContactCollectionPage() {
             contact_ids: [newContact.id]
           })
         })
-
         if (groupResponse.ok) {
           showToast("Success", "Contact added successfully", "success")
           setIsAddContactOpen(false)
           setTimeout(() => {
             setContactForm({ firstName: "", lastName: "", phone: "", email: "", groupId: "" })
-            fetchContacts()
-            fetchGroups()
+            reloadData()
           }, 300)
         } else {
           throw new Error("Failed to add contact to group")
@@ -600,13 +540,11 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Edit contact
   const handleEditContact = async (): Promise<void> => {
     if (!contactForm.firstName || !contactForm.phone || !editingContact) {
       showToast("Validation Error", "Name and phone are required", "warning")
       return
     }
-
     try {
       setLoading(true)
       const token = await getToken()
@@ -614,10 +552,8 @@ export default function ContactCollectionPage() {
         showToast("Error", "Authentication required", "error")
         return
       }
-
       const formattedPhone = formatPhoneNumberUG(contactForm.phone)
       const fullName = `${contactForm.firstName} ${contactForm.lastName}`.trim()
-
       const response = await fetch(`${API_BASE_URL}/contacts/${editingContact.id}`, {
         method: 'PUT',
         headers: {
@@ -632,14 +568,13 @@ export default function ContactCollectionPage() {
           is_active: true
         })
       })
-
       if (response.ok) {
         showToast("Success", "Contact updated successfully", "success")
         setIsEditContactOpen(false)
         setTimeout(() => {
           setEditingContact(null)
           setContactForm({ firstName: "", lastName: "", phone: "", email: "", groupId: "" })
-          fetchContacts()
+          reloadData()
         }, 300)
       } else {
         throw new Error("Failed to update contact")
@@ -651,14 +586,10 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Handle file upload
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = event.target.files?.[0]
     if (!file) return
-
     setSelectedFile(file)
-    
-    // Start extraction
     setExtractionProgress({
       isExtracting: true,
       currentRow: 0,
@@ -666,10 +597,8 @@ export default function ContactCollectionPage() {
       extractedContacts: [],
       errors: []
     })
-
     try {
       const contacts = await parseFile(file)
-      
       setExtractionProgress({
         isExtracting: false,
         currentRow: contacts.length,
@@ -677,7 +606,6 @@ export default function ContactCollectionPage() {
         extractedContacts: contacts,
         errors: contacts.length === 0 ? ['No valid contacts found'] : []
       })
-
       if (contacts.length > 0) {
         showToast("Success", `Extracted ${contacts.length} contacts`, "success")
       } else {
@@ -695,13 +623,22 @@ export default function ContactCollectionPage() {
     }
   }
 
-  // Import contacts from extracted data
+  const handleClearFile = () => {
+    setSelectedFile(null)
+    setExtractionProgress({
+      isExtracting: false,
+      currentRow: 0,
+      totalRows: 0,
+      extractedContacts: [],
+      errors: []
+    })
+  }
+
   const handleImportContacts = async (): Promise<void> => {
     if (extractionProgress.extractedContacts.length === 0 || !importGroupId) {
       showToast("Validation Error", "Please select a file and group", "warning")
       return
     }
-
     try {
       setLoading(true)
       const token = await getToken()
@@ -710,75 +647,216 @@ export default function ContactCollectionPage() {
         return
       }
 
-      const bulkResponse = await fetch(`${API_BASE_URL}/contacts/bulk`, {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(extractionProgress.extractedContacts)
+      // Try bulk import first
+      try {
+        const bulkResponse = await fetch(`${API_BASE_URL}/contacts/bulk`, {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(extractionProgress.extractedContacts)
+        })
+
+        if (bulkResponse.ok) {
+          const result: BulkImportResponse = await bulkResponse.json()
+          const allContactsResponse = await fetch(`${API_BASE_URL}/contacts/?skip=0&limit=1000&is_active=true`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          const allContacts: Contact[] = await allContactsResponse.json()
+          const newContactIds = allContacts.slice(-result.created).map((c: Contact) => c.id)
+          if (newContactIds.length > 0) {
+            await fetch(`${API_BASE_URL}/groups/${importGroupId}/contacts`, {
+              method: 'POST',
+              headers: {
+                'accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ contact_ids: newContactIds })
+            })
+          }
+          showToast("Success", `Imported ${result.created} contacts successfully`, "success")
+          setIsImportOpen(false)
+          setTimeout(() => {
+            setSelectedFile(null)
+            setImportGroupId("")
+            setExtractionProgress({
+              isExtracting: false,
+              currentRow: 0,
+              totalRows: 0,
+              extractedContacts: [],
+              errors: []
+            })
+            reloadData()
+          }, 300)
+          return
+        }
+      } catch (bulkError) {
+        console.log("Bulk import failed, falling back to sequential import:", bulkError)
+      }
+
+      // Fallback: Sequential import with progress
+      showToast("Info", "Using sequential import (bulk endpoint unavailable)", "warning")
+      
+      setDeleteProgress({
+        isDeleting: true,
+        current: 0,
+        total: extractionProgress.extractedContacts.length,
+        message: 'Starting import...'
       })
 
-      if (bulkResponse.ok) {
-        const result: BulkImportResponse = await bulkResponse.json()
+      const createdContactIds: number[] = []
+      let successCount = 0
+      let errorCount = 0
 
-        const allContactsResponse = await fetch(`${API_BASE_URL}/contacts/?skip=0&limit=1000&is_active=true`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+      for (let i = 0; i < extractionProgress.extractedContacts.length; i++) {
+        const contact = extractionProgress.extractedContacts[i]
+        
+        setDeleteProgress({
+          isDeleting: true,
+          current: i + 1,
+          total: extractionProgress.extractedContacts.length,
+          message: `Importing contact ${i + 1} of ${extractionProgress.extractedContacts.length}...`
         })
-        const allContacts: Contact[] = await allContactsResponse.json()
-        const newContactIds = allContacts.slice(-result.created).map((c: Contact) => c.id)
 
-        if (newContactIds.length > 0) {
-          await fetch(`${API_BASE_URL}/groups/${importGroupId}/contacts`, {
+        try {
+          const response = await fetch(`${API_BASE_URL}/contacts/`, {
             method: 'POST',
             headers: {
               'accept': 'application/json',
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ contact_ids: newContactIds })
+            body: JSON.stringify(contact)
           })
+
+          if (response.ok) {
+            const newContact: Contact = await response.json()
+            createdContactIds.push(newContact.id)
+            successCount++
+          } else {
+            errorCount++
+          }
+        } catch (error) {
+          errorCount++
         }
 
-        showToast("Success", `Imported ${result.created} contacts successfully`, "success")
-        setIsImportOpen(false)
-        setTimeout(() => {
-          setSelectedFile(null)
-          setImportGroupId("")
-          setExtractionProgress({
-            isExtracting: false,
-            currentRow: 0,
-            totalRows: 0,
-            extractedContacts: [],
-            errors: []
-          })
-          fetchContacts()
-          fetchGroups()
-        }, 300)
-      } else {
-        throw new Error("Failed to import contacts")
+        await new Promise(resolve => setTimeout(resolve, 50))
       }
+
+      // Add all created contacts to the group
+      if (createdContactIds.length > 0) {
+        setDeleteProgress({
+          isDeleting: true,
+          current: extractionProgress.extractedContacts.length,
+          total: extractionProgress.extractedContacts.length,
+          message: 'Adding contacts to group...'
+        })
+
+        await fetch(`${API_BASE_URL}/groups/${importGroupId}/contacts`, {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ contact_ids: createdContactIds })
+        })
+      }
+
+      setDeleteProgress({
+        isDeleting: false,
+        current: 0,
+        total: 0,
+        message: ''
+      })
+
+      showToast(
+        "Success", 
+        `Imported ${successCount} contacts${errorCount > 0 ? ` (${errorCount} skipped)` : ''}`, 
+        "success"
+      )
+      
+      setIsImportOpen(false)
+      setTimeout(() => {
+        setSelectedFile(null)
+        setImportGroupId("")
+        setExtractionProgress({
+          isExtracting: false,
+          currentRow: 0,
+          totalRows: 0,
+          extractedContacts: [],
+          errors: []
+        })
+        reloadData()
+      }, 300)
+
     } catch (error) {
       showToast("Error", "Failed to import contacts", "error")
     } finally {
       setLoading(false)
+      setDeleteProgress({
+        isDeleting: false,
+        current: 0,
+        total: 0,
+        message: ''
+      })
     }
   }
 
-  // Delete group
-  const handleDeleteGroup = async (group: Group): Promise<void> => {
-    if (!window.confirm(`Are you sure you want to delete "${group.name}"?`)) {
+  const handleDeleteGroupWithContacts = async (group: Group): Promise<void> => {
+    const contactCount = group.contact_count || 0
+    const message = contactCount > 0 
+      ? `Delete "${group.name}" and all ${contactCount} contacts in it? This cannot be undone.`
+      : `Delete "${group.name}"? This cannot be undone.`
+    if (!window.confirm(message)) {
       return
     }
-
     try {
       const token = await getToken()
       if (!token) {
         showToast("Error", "Authentication required", "error")
         return
       }
-
+      setDeleteProgress({
+        isDeleting: true,
+        current: 0,
+        total: contactCount + 1,
+        message: 'Fetching group contacts...'
+      })
+      const contactsResponse = await fetch(`${API_BASE_URL}/groups/${group.id}/contacts?skip=0&limit=1000`, {
+        headers: { 
+          'accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (contactsResponse.ok) {
+        const groupContacts: Contact[] = await contactsResponse.json()
+        for (let i = 0; i < groupContacts.length; i++) {
+          setDeleteProgress({
+            isDeleting: true,
+            current: i + 1,
+            total: contactCount + 1,
+            message: `Deleting contact ${i + 1} of ${contactCount}...`
+          })
+          await fetch(`${API_BASE_URL}/contacts/${groupContacts[i].id}`, {
+            method: 'DELETE',
+            headers: { 
+              'accept': '*/*',
+              'Authorization': `Bearer ${token}`
+            }
+          })
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+      }
+      setDeleteProgress({
+        isDeleting: true,
+        current: contactCount,
+        total: contactCount + 1,
+        message: 'Deleting group...'
+      })
       const response = await fetch(`${API_BASE_URL}/groups/${group.id}`, {
         method: 'DELETE',
         headers: { 
@@ -786,31 +864,40 @@ export default function ContactCollectionPage() {
           'Authorization': `Bearer ${token}`
         }
       })
-
       if (response.ok) {
-        showToast("Success", "Group deleted successfully", "success")
-        fetchGroups()
+        showToast("Success", "Group and contacts deleted successfully", "success")
+        reloadData()
       } else {
         throw new Error("Failed to delete group")
       }
     } catch (error) {
       showToast("Error", "Failed to delete group", "error")
+    } finally {
+      setDeleteProgress({
+        isDeleting: false,
+        current: 0,
+        total: 0,
+        message: ''
+      })
     }
   }
 
-  // Delete contact
   const handleDeleteContact = async (contact: Contact): Promise<void> => {
-    if (!window.confirm(`Are you sure you want to delete "${contact.name}"?`)) {
+    if (!window.confirm(`Delete "${contact.name}"? This cannot be undone.`)) {
       return
     }
-
     try {
+      setDeleteProgress({
+        isDeleting: true,
+        current: 1,
+        total: 1,
+        message: 'Deleting contact...'
+      })
       const token = await getToken()
       if (!token) {
         showToast("Error", "Authentication required", "error")
         return
       }
-
       const response = await fetch(`${API_BASE_URL}/contacts/${contact.id}`, {
         method: 'DELETE',
         headers: { 
@@ -818,10 +905,9 @@ export default function ContactCollectionPage() {
           'Authorization': `Bearer ${token}`
         }
       })
-
       if (response.ok) {
         showToast("Success", "Contact deleted successfully", "success")
-        fetchContacts()
+        reloadData()
         if (isViewGroupContactsOpen && selectedGroupForView) {
           fetchGroupContacts(selectedGroupForView.id)
         }
@@ -830,22 +916,114 @@ export default function ContactCollectionPage() {
       }
     } catch (error) {
       showToast("Error", "Failed to delete contact", "error")
+    } finally {
+      setDeleteProgress({
+        isDeleting: false,
+        current: 0,
+        total: 0,
+        message: ''
+      })
     }
   }
 
-  // Remove contact from group
-  const handleRemoveFromGroup = async (groupId: number, contactId: number): Promise<void> => {
-    if (!window.confirm("Remove this contact from the group?")) {
+  const handleBulkDelete = async (): Promise<void> => {
+    const selectedCount = selectedContacts.size
+    if (selectedCount === 0) {
+      showToast("Warning", "No contacts selected", "warning")
       return
     }
-
+    if (!window.confirm(`Delete ${selectedCount} selected contacts? This cannot be undone.`)) {
+      return
+    }
     try {
       const token = await getToken()
       if (!token) {
         showToast("Error", "Authentication required", "error")
         return
       }
+      const contactIds = Array.from(selectedContacts)
+      setDeleteProgress({
+        isDeleting: true,
+        current: 0,
+        total: contactIds.length,
+        message: 'Starting bulk delete...'
+      })
+      for (let i = 0; i < contactIds.length; i++) {
+        setDeleteProgress({
+          isDeleting: true,
+          current: i + 1,
+          total: contactIds.length,
+          message: `Deleting contact ${i + 1} of ${contactIds.length}...`
+        })
+        await fetch(`${API_BASE_URL}/contacts/${contactIds[i]}`, {
+          method: 'DELETE',
+          headers: { 
+            'accept': '*/*',
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      showToast("Success", `${contactIds.length} contacts deleted successfully`, "success")
+      setSelectedContacts(new Set())
+      setSelectAllChecked(false)
+      reloadData()
+    } catch (error) {
+      showToast("Error", "Failed to delete contacts", "error")
+    } finally {
+      setDeleteProgress({
+        isDeleting: false,
+        current: 0,
+        total: 0,
+        message: ''
+      })
+    }
+  }
 
+  const toggleContactSelection = (contactId: number) => {
+    const newSelected = new Set(selectedContacts)
+    if (newSelected.has(contactId)) {
+      newSelected.delete(contactId)
+    } else {
+      newSelected.add(contactId)
+    }
+    setSelectedContacts(newSelected)
+  }
+
+  const toggleSelectAll = () => {
+    const filtered = contacts.filter((contact: Contact) => {
+      const matchesSearch = 
+        (contact.name || "").toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
+        (contact.phone_number || "").includes(contactSearchQuery) ||
+        (contact.email || "").toLowerCase().includes(contactSearchQuery.toLowerCase())
+      return matchesSearch
+    })
+    
+    if (selectAllChecked) {
+      setSelectedContacts(new Set())
+      setSelectAllChecked(false)
+    } else {
+      setSelectedContacts(new Set(filtered.map(c => c.id)))
+      setSelectAllChecked(true)
+    }
+  }
+
+  const handleRemoveFromGroup = async (groupId: number, contactId: number): Promise<void> => {
+    if (!window.confirm("Remove this contact from the group?")) {
+      return
+    }
+    try {
+      setDeleteProgress({
+        isDeleting: true,
+        current: 1,
+        total: 1,
+        message: 'Removing contact from group...'
+      })
+      const token = await getToken()
+      if (!token) {
+        showToast("Error", "Authentication required", "error")
+        return
+      }
       const response = await fetch(`${API_BASE_URL}/groups/${groupId}/contacts/${contactId}`, {
         method: 'DELETE',
         headers: { 
@@ -853,20 +1031,25 @@ export default function ContactCollectionPage() {
           'Authorization': `Bearer ${token}`
         }
       })
-
       if (response.ok) {
         showToast("Success", "Contact removed from group", "success")
         fetchGroupContacts(groupId)
-        fetchGroups()
+        reloadData()
       } else {
         throw new Error("Failed to remove contact from group")
       }
     } catch (error) {
       showToast("Error", "Failed to remove contact from group", "error")
+    } finally {
+      setDeleteProgress({
+        isDeleting: false,
+        current: 0,
+        total: 0,
+        message: ''
+      })
     }
   }
 
-  // Open edit group dialog
   const openEditGroupDialog = (group: Group): void => {
     setEditingGroup(group)
     setEditGroupForm({
@@ -876,14 +1059,12 @@ export default function ContactCollectionPage() {
     setIsEditGroupOpen(true)
   }
 
-  // Open view group contacts dialog
   const openViewGroupContactsDialog = (group: Group): void => {
     setSelectedGroupForView(group)
     setIsViewGroupContactsOpen(true)
     fetchGroupContacts(group.id)
   }
 
-  // Open edit contact dialog
   const openEditContactDialog = (contact: Contact): void => {
     setEditingContact(contact)
     const nameParts = (contact.name || "").split(" ")
@@ -901,6 +1082,22 @@ export default function ContactCollectionPage() {
     fetchGroups()
     fetchContacts()
   }, [])
+
+  useEffect(() => {
+    const filtered = contacts.filter((contact: Contact) => {
+      const matchesSearch = 
+        (contact.name || "").toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
+        (contact.phone_number || "").includes(contactSearchQuery) ||
+        (contact.email || "").toLowerCase().includes(contactSearchQuery.toLowerCase())
+      return matchesSearch
+    })
+    
+    if (filtered.length > 0) {
+      setSelectAllChecked(selectedContacts.size === filtered.length)
+    } else {
+      setSelectAllChecked(false)
+    }
+  }, [selectedContacts, contacts, contactSearchQuery])
 
   const totalContacts: number = contacts.length
   const activeContacts: number = contacts.filter((c: Contact) => c.is_active).length
@@ -922,6 +1119,29 @@ export default function ContactCollectionPage() {
 
   return (
     <PageLayout>
+      {deleteProgress.isDeleting && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Deleting...
+              </CardTitle>
+              <CardDescription>{deleteProgress.message}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Progress 
+                value={(deleteProgress.current / deleteProgress.total) * 100} 
+                className="h-3"
+              />
+              <div className="text-center text-sm text-muted-foreground">
+                {deleteProgress.current} of {deleteProgress.total}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <Breadcrumb items={[{ label: "Dashboard", href: "/" }, { label: "Contact Collection" }]} />
 
       <div className="grid gap-4 md:grid-cols-4 mb-6">
@@ -978,14 +1198,23 @@ export default function ContactCollectionPage() {
           </TabsList>
 
           <div className="flex gap-2">
-            <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+            <Dialog open={isImportOpen} onOpenChange={(open) => {
+              setIsImportOpen(open)
+              if (!open) {
+                setTimeout(() => {
+                  handleClearFile()
+                  setImportGroupId("")
+                  reloadData()
+                }, 300)
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2 bg-transparent">
                   <Upload className="h-4 w-4" />
                   Import
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
+              <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Import Contacts</DialogTitle>
                   <DialogDescription>
@@ -1011,27 +1240,66 @@ export default function ContactCollectionPage() {
 
                   <div className="space-y-2">
                     <Label>Upload File</Label>
-                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
-                      <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-                      <p className="text-sm font-medium mb-1">
-                        {selectedFile ? selectedFile.name : 'Click to select file'}
-                      </p>
-                      <p className="text-xs text-muted-foreground mb-3">
-                        CSV, XLSX, or XLS format
-                      </p>
-                      <Input 
-                        type="file" 
-                        accept=".csv,.xlsx,.xls" 
-                        className="hidden" 
-                        id="file-upload" 
-                        onChange={handleFileUpload} 
-                      />
-                      <Label htmlFor="file-upload" className="cursor-pointer">
-                        <Button variant="outline" className="mt-2" asChild>
-                          <span>Select File</span>
-                        </Button>
-                      </Label>
-                    </div>
+                    {!selectedFile ? (
+                      <div className="border-2 border-dashed border-border rounded-lg p-6 md:p-8 text-center hover:border-primary/50 transition-colors cursor-pointer">
+                        <FileSpreadsheet className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-2 md:mb-3 text-muted-foreground" />
+                        <p className="text-sm font-medium mb-1">
+                          Click to select file
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-2 md:mb-3">
+                          CSV, XLSX, or XLS format
+                        </p>
+                        <Input 
+                          type="file" 
+                          accept=".csv,.xlsx,.xls" 
+                          className="hidden" 
+                          id="file-upload" 
+                          onChange={handleFileUpload} 
+                        />
+                        <Label htmlFor="file-upload" className="cursor-pointer">
+                          <Button variant="outline" className="mt-1" asChild>
+                            <span>Browse Files</span>
+                          </Button>
+                        </Label>
+                      </div>
+                    ) : (
+                      <div className="border-2 border-primary/50 rounded-lg p-4 bg-primary/5">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <FileSpreadsheet className="h-8 w-8 text-primary flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {(selectedFile.size / 1024).toFixed(2)} KB
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleClearFile}
+                            className="flex-shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <Input 
+                          type="file" 
+                          accept=".csv,.xlsx,.xls" 
+                          className="hidden" 
+                          id="file-upload-change" 
+                          onChange={handleFileUpload} 
+                        />
+                        <Label htmlFor="file-upload-change" className="cursor-pointer">
+                          <Button variant="outline" size="sm" className="w-full" asChild>
+                            <span>
+                              <RefreshCw className="h-3 w-3 mr-2" />
+                              Change File
+                            </span>
+                          </Button>
+                        </Label>
+                      </div>
+                    )}
                   </div>
 
                   {extractionProgress.isExtracting && (
@@ -1058,10 +1326,10 @@ export default function ContactCollectionPage() {
                               {extractionProgress.extractedContacts.length} contacts extracted
                             </p>
                           </div>
-                          <div className="max-h-40 overflow-y-auto space-y-1 mt-3">
+                          <div className="max-h-32 md:max-h-40 overflow-y-auto space-y-1 mt-3">
                             {extractionProgress.extractedContacts.slice(0, 5).map((contact, idx) => (
                               <div key={idx} className="text-xs bg-white p-2 rounded border border-green-200">
-                                <div className="font-medium">{contact.name}</div>
+                                <div className="font-medium truncate">{contact.name}</div>
                                 <div className="text-muted-foreground">{contact.phone_number}</div>
                               </div>
                             ))}
@@ -1092,7 +1360,7 @@ export default function ContactCollectionPage() {
                     </Card>
                   )}
 
-                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                  <div className="bg-muted/50 rounded-lg p-3 md:p-4 space-y-2">
                     <p className="text-sm font-medium">Smart Extraction:</p>
                     <ul className="text-xs text-muted-foreground space-y-1">
                       <li>• Automatically detects phone numbers in any format</li>
@@ -1102,11 +1370,14 @@ export default function ContactCollectionPage() {
                     </ul>
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsImportOpen(false)}>Cancel</Button>
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                  <Button variant="outline" onClick={() => setIsImportOpen(false)} className="w-full sm:w-auto">
+                    Cancel
+                  </Button>
                   <Button 
                     onClick={handleImportContacts} 
                     disabled={loading || extractionProgress.extractedContacts.length === 0 || !importGroupId}
+                    className="w-full sm:w-auto"
                   >
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Import {extractionProgress.extractedContacts.length} Contacts
@@ -1115,7 +1386,15 @@ export default function ContactCollectionPage() {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen}>
+            <Dialog open={isAddContactOpen} onOpenChange={(open) => {
+              setIsAddContactOpen(open)
+              if (!open) {
+                setTimeout(() => {
+                  setContactForm({ firstName: "", lastName: "", phone: "", email: "", groupId: "" })
+                  reloadData()
+                }, 300)
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="gap-2">
                   <UserPlus className="h-4 w-4" />
@@ -1211,7 +1490,15 @@ export default function ContactCollectionPage() {
                   </CardTitle>
                   <CardDescription>Organize contacts into groups</CardDescription>
                 </div>
-                <Dialog open={isCreateGroupOpen} onOpenChange={setIsCreateGroupOpen}>
+                <Dialog open={isCreateGroupOpen} onOpenChange={(open) => {
+                  setIsCreateGroupOpen(open)
+                  if (!open) {
+                    setTimeout(() => {
+                      setCreateGroupForm({ name: "", description: "" })
+                      reloadData()
+                    }, 300)
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <Button className="gap-2">
                       <Plus className="h-4 w-4" />
@@ -1310,10 +1597,10 @@ export default function ContactCollectionPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 className="text-destructive"
-                                onClick={() => handleDeleteGroup(group)}
+                                onClick={() => handleDeleteGroupWithContacts(group)}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Group
+                                Delete Group & Contacts
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1348,15 +1635,26 @@ export default function ContactCollectionPage() {
         <TabsContent value="contacts" className="space-y-6">
           <Card className="border-border/50 shadow-none">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <CardTitle>All Contacts</CardTitle>
                   <CardDescription>View and manage your contacts</CardDescription>
                 </div>
+                {selectedContacts.size > 0 && (
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    className="gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete {selectedContacts.size} Selected
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent>
-              <div className="mb-4">
+              <div className="mb-4 space-y-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input 
@@ -1366,6 +1664,19 @@ export default function ContactCollectionPage() {
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setContactSearchQuery(e.target.value)}
                   />
                 </div>
+                
+                {filteredContacts.length > 0 && (
+                  <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg">
+                    <Checkbox 
+                      id="select-all"
+                      checked={selectAllChecked}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                    <Label htmlFor="select-all" className="text-sm cursor-pointer">
+                      Select all ({filteredContacts.length} contacts)
+                    </Label>
+                  </div>
+                )}
               </div>
 
               {loading ? (
@@ -1382,72 +1693,82 @@ export default function ContactCollectionPage() {
                   {filteredContacts.map((contact: Contact) => (
                     <Card
                       key={contact.id}
-                      className="border-border/50 shadow-none bg-background/50 hover:bg-background/80 transition-colors"
+                      className={`border-border/50 shadow-none bg-background/50 hover:bg-background/80 transition-colors ${
+                        selectedContacts.has(contact.id) ? 'ring-2 ring-primary' : ''
+                      }`}
                     >
                       <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-4 flex-1">
-                            <Avatar className="h-12 w-12">
-                              <AvatarFallback className="bg-primary/10 text-primary">
-                                {(contact.name || "?")
-                                  .split(" ")
-                                  .map((n: string) => n[0])
-                                  .join("")
-                                  .toUpperCase()
-                                  .slice(0, 2)}
-                              </AvatarFallback>
-                            </Avatar>
+                        <div className="flex items-start gap-3">
+                          <Checkbox 
+                            checked={selectedContacts.has(contact.id)}
+                            onCheckedChange={() => toggleContactSelection(contact.id)}
+                            className="mt-1"
+                          />
+                          
+                          <div className="flex items-start justify-between flex-1 min-w-0">
+                            <div className="flex items-start gap-3 md:gap-4 flex-1 min-w-0">
+                              <Avatar className="h-10 w-10 md:h-12 md:w-12 flex-shrink-0">
+                                <AvatarFallback className="bg-primary/10 text-primary">
+                                  {(contact.name || "?")
+                                    .split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                    .slice(0, 2)}
+                                </AvatarFallback>
+                              </Avatar>
 
-                            <div className="flex-1 space-y-3">
-                              <div>
-                                <h3 className="font-semibold text-base">{contact.name || "Unknown"}</h3>
-                                <p className="text-sm text-muted-foreground">ID: {contact.id}</p>
-                              </div>
+                              <div className="flex-1 space-y-2 md:space-y-3 min-w-0">
+                                <div>
+                                  <h3 className="font-semibold text-sm md:text-base truncate">{contact.name || "Unknown"}</h3>
+                                  <p className="text-xs md:text-sm text-muted-foreground">ID: {contact.id}</p>
+                                </div>
 
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                <div className="flex items-center gap-2">
-                                  <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                  <span className="truncate">{contact.phone_number || "N/A"}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                  <span className="truncate">{contact.email || "No email"}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                  <span className="text-muted-foreground">
-                                    {new Date(contact.created_at).toLocaleDateString()}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Badge variant={contact.is_active ? "default" : "secondary"} className="text-xs">
-                                    {contact.is_active ? "Active" : "Inactive"}
-                                  </Badge>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3 text-xs md:text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <Phone className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground flex-shrink-0" />
+                                    <span className="truncate">{contact.phone_number || "N/A"}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Mail className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground flex-shrink-0" />
+                                    <span className="truncate">{contact.email || "No email"}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground flex-shrink-0" />
+                                    <span className="text-muted-foreground">
+                                      {new Date(contact.created_at).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant={contact.is_active ? "default" : "secondary"} className="text-xs">
+                                      {contact.is_active ? "Active" : "Inactive"}
+                                    </Badge>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
 
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditContactDialog(contact)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit Contact
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-destructive"
-                                onClick={() => handleDeleteContact(contact)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Contact
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditContactDialog(contact)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit Contact
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteContact(contact)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete Contact
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -1459,8 +1780,16 @@ export default function ContactCollectionPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Group Dialog - SEPARATE STATE */}
-      <Dialog open={isEditGroupOpen} onOpenChange={setIsEditGroupOpen}>
+      <Dialog open={isEditGroupOpen} onOpenChange={(open) => {
+        setIsEditGroupOpen(open)
+        if (!open) {
+          setTimeout(() => {
+            setEditingGroup(null)
+            setEditGroupForm({ name: "", description: "" })
+            reloadData()
+          }, 300)
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Group</DialogTitle>
@@ -1500,8 +1829,16 @@ export default function ContactCollectionPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Contact Dialog */}
-      <Dialog open={isEditContactOpen} onOpenChange={setIsEditContactOpen}>
+      <Dialog open={isEditContactOpen} onOpenChange={(open) => {
+        setIsEditContactOpen(open)
+        if (!open) {
+          setTimeout(() => {
+            setEditingContact(null)
+            setContactForm({ firstName: "", lastName: "", phone: "", email: "", groupId: "" })
+            reloadData()
+          }, 300)
+        }
+      }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Edit Contact</DialogTitle>
@@ -1561,8 +1898,16 @@ export default function ContactCollectionPage() {
         </DialogContent>
       </Dialog>
 
-      {/* View Group Contacts Dialog */}
-      <Dialog open={isViewGroupContactsOpen} onOpenChange={setIsViewGroupContactsOpen}>
+      <Dialog open={isViewGroupContactsOpen} onOpenChange={(open) => {
+        setIsViewGroupContactsOpen(open)
+        if (!open) {
+          setTimeout(() => {
+            setSelectedGroupForView(null)
+            setGroupContacts([])
+            reloadData()
+          }, 300)
+        }
+      }}>
         <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
