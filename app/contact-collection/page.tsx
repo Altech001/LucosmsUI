@@ -801,7 +801,7 @@ export default function ContactCollectionPage() {
                 </div>
                 
                 {importState.contacts.length > 0 && !importState.processing && (
-                  <DialogFooter className="bg-background border-t p-4 sm:p-6 flex-wrap flex-row-reverse justify-between">
+                  <DialogFooter className="bg-background border-t p-4 sm:p-6 flex-row-reverse justify-between">
                     <div className="flex items-center gap-2 w-full sm:w-1/2">
                       <Users className="h-5 w-5 text-muted-foreground flex-shrink-0"/>
                       <Select value={importState.groupId} onValueChange={(val) => setImportState(prev => ({ ...prev, groupId: val }))}>
