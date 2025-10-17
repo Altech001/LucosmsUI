@@ -700,7 +700,7 @@ export default function ContactCollectionPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 bg-card/50 backdrop-blur shadow-none">
+        <Card className="border-red-500/50 bg-card/50 backdrop-blur shadow-none">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">Largest Group</CardTitle>
           </CardHeader>
@@ -887,7 +887,7 @@ export default function ContactCollectionPage() {
         </div>
 
         <TabsContent value="groups" className="space-y-6">
-          <Card className="border-border/50 shadow-none">
+          <Card className=" shadow-none border-blue-300/50">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -950,7 +950,7 @@ export default function ContactCollectionPage() {
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
                   {filteredGroups.map(group => (
-                    <Card key={group.id} className="border-border/50 shadow-none bg-background/50 hover:bg-background/80 transition-colors">
+                    <Card key={group.id} className="border-black/50 shadow-none bg-background/50 hover:bg-background/80 transition-colors">
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">
                           <div className="space-y-1 flex-1">
